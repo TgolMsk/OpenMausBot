@@ -33,6 +33,15 @@ it("uploads both installers, the updater manifests and blockmaps before a draft 
   }
 });
 
+it("packages only Apple silicon resources in the actual macOS target configuration", () => {
+  const builder = parse(readFileSync(new URL("../electron-builder.yml", import.meta.url), "utf8"));
+  expect(builder.mac.target).toEqual([
+    { target: "dmg", arch: ["arm64"] },
+    { target: "zip", arch: ["arm64"] },
+  ]);
+  expect(workflow.jobs.mac.env.OPENMAUSBOT_CUA_ARCHES).toBe("arm64");
+});
+
 it("refuses an existing version tag from another commit and fails closed on a tag lookup error", () => {
   const pin = workflow.jobs.prepare.steps.find((step: Step) => step.name === "Pin and validate the source").run as string;
   expect(pin).toContain('git ls-remote --exit-code --tags origin "refs/tags/v$version"');

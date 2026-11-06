@@ -95,15 +95,13 @@ extraResources:
     to: android-platform-tools
 
 mac:
-  # Two single-arch artifacts rather than one universal binary: the app is
-  # architecture-specific, and universal would make users download both halves.
-  # electron-updater picks by filename (arm64-marked files on Apple silicon,
-  # unmarked ones on Intel), so latest-mac.yml must list all four files.
+  # electron-builder 26 merges target architecture entries with CLI options;
+  # the personal release stages only Apple silicon native resources.
   target:
     - target: dmg
-      arch: [arm64, x64]
+      arch: [arm64]
     - target: zip
-      arch: [arm64, x64]
+      arch: [arm64]
   icon: build/icon.icns
   category: public.app-category.productivity
   hardenedRuntime: true
