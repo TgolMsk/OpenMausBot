@@ -96,8 +96,9 @@ it("never rewrites a complete draft and uploads the completion marker last when 
         expect(existsSync(join(directory, "uploads.log"))).toBe(false);
       } else {
         expect(result.status, result.stderr).toBe(0);
-        expect(readFileSync(join(directory, "uploads.log"), "utf8").trim().split("\n"))
-          .toEqual(["assets/OpenMausBot.dmg", "assets/latest-mac.yml", "assets/build-metadata.json"]);
+        const uploaded = readFileSync(join(directory, "uploads.log"), "utf8").trim().split("\n");
+        expect(uploaded.at(-1)).toBe("assets/build-metadata.json");
+        expect(uploaded.slice(0, -1).sort()).toEqual(["assets/OpenMausBot.dmg", "assets/latest-mac.yml"].sort());
       }
     } finally {
       rmSync(directory, { recursive: true, force: true });
