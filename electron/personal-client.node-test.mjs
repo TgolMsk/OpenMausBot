@@ -26,13 +26,16 @@ test("personal desktop pages have local controls without commercial account or c
       },
     }),
   });
-  for (const key of ["cloudAccount", "cloudAdd", "cloudPlan", "cloudSendPage", "accounts", "accountSheet", "companionAccount", "organization", "companyBackups", "updater", "updatesConsent"]) {
+  for (const key of ["cloudAccount", "cloudAdd", "cloudPlan", "cloudSendPage", "accounts", "accountSheet", "companionAccount", "organization", "companyBackups", "updatesConsent"]) {
     assert.equal(bridge[key], undefined, `${key} should not be offered by a personal desktop`);
   }
+  assert.deepEqual(Object.keys(bridge.updater).sort(), ["check", "install", "onState", "seen"]);
+  await bridge.updater.check();
   await bridge.environments.create("Work", "/tmp/personal-test-workspace");
   await bridge.remoteClient.pair("https://own-server.example.test", "123456");
   await bridge.companion.refreshTailscale();
   assert.deepEqual(invocations, [
+    ["update:check"],
     ["environments:create", "Work", "/tmp/personal-test-workspace"],
     ["desktop-remote:pair", "https://own-server.example.test", "123456"],
     ["companion:refresh-tailscale"],

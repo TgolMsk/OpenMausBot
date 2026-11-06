@@ -1,5 +1,7 @@
 <div align="center">
 
+> 此 fork 的自用客户端在 `codex/personal-client` 分支开发，安装包与自动更新使用 [TgolMsk/OpenMausBot Releases](https://github.com/TgolMsk/OpenMausBot/releases)。构建与发布方式见 [自用客户端说明](docs/personal-client.md)。下方保留上游项目介绍和下载链接，使用自用版请以上述 Releases 为准。
+
 # OpenMausBot
 
 **The open-source Grok Bot alternative: your own team of AI bots, in a chat app.**

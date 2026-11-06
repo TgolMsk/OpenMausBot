@@ -51,11 +51,35 @@ pnpm --dir /Users/ws/Project/BotIvn dev:personal
 
 - 移除原作者的 Cloud 账户、套餐购买、订阅、升级和试用入口，以及 Boat、赞助和产品推广提示。
 - 停用官方托管的连接器、手机中转、套餐赠送的模型/语音/研究额度和页面发布。
-- 停用官方桌面更新、服务器更新检查及会安装回官方版本的 Fleet 升级命令；后续从本分支更新。
+- 停用原作者桌面更新、服务器更新检查及会安装回原版的 Fleet 升级命令；自用桌面仅从本 fork 更新。
 - 官方问题上报和使用统计不再自动连接；可明确配置自己的问题上报地址。
 - 保留本地 CLI、模型使用量、自配模型/语音 API、MCP、自己的服务器和本地数据备份。
 
 自用策略固定在 `shared/personal-client.ts` 和 `electron/personal-client.mjs`，用户界面不提供切回商业版的开关。历史协议和底层模块仍保留，便于合并上游修复；运行入口和后台连接已按自用策略关闭。
+
+## 安装包与自动更新
+
+自用发行仓库为 [TgolMsk/OpenMausBot Releases](https://github.com/TgolMsk/OpenMausBot/releases)，目前构建 macOS Apple silicon 和 Windows x64。
+
+安装包启动 15 秒后检查更新，之后每小时检查一次；发现本仓库正式新版本后自动下载，并沿用原有闲时安装机制。设置里也可手动检查。开发模式不执行自动更新，草稿和预发布版本不会推给客户端，也不允许降级。
+
+改好版本号、提交并推送本分支后，在这台 Mac 上发版：
+
+```sh
+pnpm --dir /Users/ws/Project/BotIvn release:personal
+```
+
+命令会启动并等待 GitHub 云构建，下载完整草稿，用本机钥匙串里的 Developer ID 证书签名 Mac 应用，通过 `fgbrowser-notary` 配置公证，重新生成更新索引与 blockmap，最后发布正式 Release。证书和公证凭据不上传 GitHub。Windows 安装包目前未做代码签名。
+
+本 fork 继承的旧版跨仓镜像发布工作流已停用，发版不会向原作者仓库同步文件。
+
+如云构建已完成，可继续签名并发布现有草稿：
+
+```sh
+pnpm --dir /Users/ws/Project/BotIvn release:personal:finish
+```
+
+发布流程拒绝覆盖已发布版本，拒绝混合不同提交的安装包，并校验 Mac 签名、公证、更新源及两端文件校验值。
 
 ## 验证
 

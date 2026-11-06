@@ -400,7 +400,7 @@ const bridge = {
   },
   setCredential: (name, value) => ipcRenderer.invoke("credential:set", name, value),
 
-  updater: !personalClient ? {
+  updater: {
     check: () => ipcRenderer.invoke("update:check"),
     install: () => isLocalPage || navigator.userActivation?.isActive === true
       ? ipcRenderer.invoke("update:install") : Promise.reject(new Error("Choose Restart to update.")),
@@ -414,7 +414,7 @@ const bridge = {
       ipcRenderer.on("update:state", handler);
       return () => ipcRenderer.removeListener("update:state", handler);
     },
-  } : undefined,
+  },
 
   /** A remote page may read the list but never change where this window goes. */
   environments: {

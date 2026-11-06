@@ -134,35 +134,29 @@ describe("CI concurrency", () => {
     expect(delegated).not.toContain("/tasks/${peerThread.threadId}`");
   });
 
-  it("makes a release wait for its commit's CI gate before any draft", () => {
+  it("assembles a personal draft only after both pinned platform builds finish", () => {
     const release = parse(readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8"));
-    expect(release.jobs.assemble.needs).toContain("ci");
-    expect(release.jobs.ci.needs).toBe("prepare");
-    expect(release.jobs.ci.permissions).toEqual({ actions: "write", contents: "write" });
-    const wait = release.jobs.ci.steps.find((step: { run?: string }) => step.run === "node scripts/release-ci.mjs");
-    expect(wait.if).toBe("${{ !inputs.ship_without_ci }}");
-    expect(wait.env).toMatchObject({ SHA: "${{ needs.prepare.outputs.sha }}", VERSION: "${{ needs.prepare.outputs.version }}" });
-    // The script reads ci.yml's gate by its job name.
-    expect(readFileSync(new URL("./release-ci.mjs", import.meta.url), "utf8")).toContain(`job.name === "${workflow.jobs.gate.name}"`);
-    // The release lane is a branch, so its runs get their own concurrency group.
-    expect(workflow.on).toHaveProperty("workflow_dispatch");
+    expect(release.jobs.assemble.needs).toEqual(["prepare", "mac", "windows"]);
+    expect(release.jobs.assemble.permissions).toEqual({ contents: "write" });
+    const validation = release.jobs.mac.steps.find((step: { name?: string }) => step.name === "Verify release policy");
+    expect(validation.run).toContain("electron/updater.test.mjs");
+    expect(release.on).toHaveProperty("workflow_dispatch");
   });
 
-  it("checks out every module the release gate imports", () => {
+  it("builds and assembles the exact pinned personal release commit", () => {
     const release = parse(readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8"));
-    const checkout = release.jobs.ci.steps.find((step: { uses?: string }) => step.uses?.startsWith("actions/checkout@"));
-    const sparse = (checkout.with["sparse-checkout"] as string).split("\n").map((line) => line.trim()).filter(Boolean);
-    const imports = [...readFileSync(new URL("./release-ci.mjs", import.meta.url), "utf8").matchAll(/^import .* from "\.\/([^"]+)";$/gm)]
-      .map((match) => `scripts/${match[1]}`);
-    expect(imports).toContain("scripts/ci-scope.mjs");
-    expect(sparse.sort()).toEqual(["scripts/release-ci.mjs", ...imports].sort());
+    expect(release.jobs.prepare.if).toBe("github.repository == 'TgolMsk/OpenMausBot'");
+    for (const name of ["mac", "windows", "assemble"]) {
+      const checkout = release.jobs[name].steps.find((step: { uses?: string }) => step.uses?.startsWith("actions/checkout@"));
+      expect(checkout.with.ref).toBe("${{ needs.prepare.outputs.sha }}");
+    }
   });
 
   it("builds the Windows Defender check's installer exactly as the release's Windows job does", () => {
     const release = parse(readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8"));
     const check = parse(readFileSync(new URL("../.github/workflows/windows-defender-check.yml", import.meta.url), "utf8"));
     type Step = { uses?: string; with?: unknown; run?: string; shell?: string };
-    const toolchainToInstaller = (steps: Step[]) => steps.slice(1, steps.findIndex((step) => step.run === "pnpm package:win") + 1)
+    const toolchainToInstaller = (steps: Step[]) => steps.filter((step) => step.uses?.startsWith("pnpm/action-setup@") || step.uses?.startsWith("actions/setup-node@") || step.run === "pnpm install --frozen-lockfile" || step.run === "pnpm package:win")
       .map(({ uses, with: inputs, run, shell }) => ({ uses, with: inputs, run, shell }));
     expect(toolchainToInstaller(check.jobs.check.steps).at(-1)?.run).toBe("pnpm package:win");
     expect(toolchainToInstaller(check.jobs.check.steps)).toEqual(toolchainToInstaller(release.jobs.windows.steps));

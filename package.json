@@ -1,12 +1,12 @@
 {
   "name": "openmausbot",
   "private": true,
-  "version": "0.1.144",
+  "version": "0.1.145",
   "description": "A local-first chat app for running a team of AI agents.",
-  "homepage": "https://github.com/milind-soni/OpenMausBot",
+  "homepage": "https://github.com/TgolMsk/OpenMausBot",
   "repository": {
     "type": "git",
-    "url": "https://github.com/milind-soni/OpenMausBot.git"
+    "url": "https://github.com/TgolMsk/OpenMausBot.git"
   },
   "author": {
     "name": "Milind Soni",
@@ -28,6 +28,8 @@
     "i18n:check": "node scripts/generate-locale.mjs --check",
     "dev": "vite",
     "dev:personal": "node scripts/dev-personal.mjs",
+    "release:personal": "node scripts/personal-release.mjs",
+    "release:personal:finish": "node scripts/finish-personal-release.mjs --publish",
     "docs:dev": "pnpm --filter @openmausbot/docs dev",
     "docs:build": "pnpm --filter @openmausbot/docs build",
     "docs:preview": "pnpm --filter @openmausbot/docs preview",

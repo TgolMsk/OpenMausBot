@@ -16,12 +16,10 @@ const CLOUD = "https://home-7f3k2.fly.dev";
 const OTHER = "https://bots.example.test";
 const OWN = "https://omb-c-a.fly.dev";
 
-const fixture = vi.hoisted(() => ({ autoUpdater: null, handlers: new Map(), personalClient: false }));
-
-vi.mock("./personal-client.mjs", () => ({ get PERSONAL_CLIENT() { return fixture.personalClient; } }));
+const fixture = vi.hoisted(() => ({ autoUpdater: null, handlers: new Map(), packaged: true }));
 
 vi.mock("electron", () => ({
-  app: { isPackaged: true, getPath: () => "/unused-updater-test-log", getVersion: () => "1.0.0", hide: vi.fn() },
+  app: { get isPackaged() { return fixture.packaged; }, getPath: () => "/unused-updater-test-log", getVersion: () => "1.0.0", hide: vi.fn() },
   clipboard: { writeText: vi.fn() },
   ipcMain: { handle: (name, handler) => fixture.handlers.set(name, handler) },
 }));
@@ -101,6 +99,12 @@ async function load(pageAllowed) {
   vi.resetModules();
   fixture.handlers.clear();
   const autoUpdater = new EventEmitter();
+  autoUpdater.setFeedURL = vi.fn();
+  let channel;
+  Object.defineProperty(autoUpdater, "channel", {
+    get: () => channel,
+    set: value => { channel = value; autoUpdater.allowDowngrade = true; },
+  });
   autoUpdater.checkForUpdates = vi.fn(async () => {
     autoUpdater.emit("checking-for-update");
     autoUpdater.emit("update-available", { version: "2.0.0" });
@@ -123,18 +127,34 @@ const settle = async () => {
 };
 
 beforeEach(() => {
-  fixture.personalClient = false;
+  fixture.packaged = true;
   localOriginModule.setLocalOrigin(LOCAL);
   vi.useFakeTimers();
 });
 
-it("never checks, downloads or installs an official update in the packaged personal client", async () => {
-  fixture.personalClient = true;
+it("pins packaged desktop updates to its own stable GitHub Releases before checking or downloading", async () => {
+  const { updater, autoUpdater } = await load(() => true);
+  updater.startUpdater();
+  expect(autoUpdater.setFeedURL).toHaveBeenCalledExactlyOnceWith({ provider: "github", owner: "TgolMsk", repo: "OpenMausBot", private: false, channel: "latest" });
+  expect(autoUpdater.channel).toBe("latest");
+  expect(autoUpdater.allowPrerelease).toBe(false);
+  expect(autoUpdater.allowDowngrade).toBe(false);
+  await vi.advanceTimersByTimeAsync(15_000);
+  await settle();
+  expect(autoUpdater.setFeedURL.mock.invocationCallOrder[0]).toBeLessThan(autoUpdater.checkForUpdates.mock.invocationCallOrder[0]);
+  expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
+  expect(autoUpdater.downloadUpdate).toHaveBeenCalledTimes(1);
+  expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+});
+
+it("keeps source-checkout development outside the updater", async () => {
+  fixture.packaged = false;
   const { updater, autoUpdater, handlers } = await load(() => true);
   updater.startUpdater();
   await handlers.get("update:check")({});
   await handlers.get("update:install")({});
   await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
+  expect(autoUpdater.setFeedURL).not.toHaveBeenCalled();
   expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled();
   expect(autoUpdater.downloadUpdate).not.toHaveBeenCalled();
   expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
@@ -145,14 +165,14 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function bridgeFor(origin, { clicked = false, rule = null } = {}) {
+function bridgeFor(origin, { clicked = false, rule = null, personal = false } = {}) {
   let bridge;
   const invoked = [];
   const asked = [];
   const loading = page(origin);
   if (rule) rule.window.webContents = loading.webContents;
   vm.runInNewContext(readFileSync(new URL("./preload.cjs", import.meta.url), "utf8"), {
-    process: { platform: "darwin", argv: [`--omb-local-origin=${LOCAL}`] },
+    process: { platform: "darwin", argv: [`--omb-local-origin=${LOCAL}`, ...(personal ? ["--omb-personal-client=1"] : [])] },
     location: { origin }, navigator: { userActivation: { isActive: clicked } },
     TextEncoder, localStorage: { getItem: () => null },
     require: () => ({
@@ -167,6 +187,14 @@ function bridgeFor(origin, { clicked = false, rule = null } = {}) {
   });
   return { bridge, invoked, asked };
 }
+
+it("personal desktop pages can check their fork's updates without exposing updates to another server", async () => {
+  const local = bridgeFor(LOCAL, { personal: true });
+  expect(Object.keys(local.bridge.updater).sort()).toEqual(["check", "install", "onState", "seen"]);
+  await local.bridge.updater.check();
+  expect(local.invoked).toEqual([["update:check"]]);
+  expect("updater" in bridgeFor(OTHER, { personal: true }).bridge).toBe(false);
+});
 
 it("My Cloud's page gets the update bridge, and it restarts the app only on the person's click", async () => {
   const local = bridgeFor(LOCAL);
