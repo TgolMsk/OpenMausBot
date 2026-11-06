@@ -1,3 +1,4 @@
+import { PERSONAL_CLIENT } from "@/lib/personal-client";
 // ＋ at the end of the rail: one sheet of choices. A new organization on the Team plan the person pays for (when they run
 // one), buy a Cloud (the buying sheet: another Cloud right here, or the first one on this computer's own sheet), or add a
 // server of the person's own by pasting its pairing link.
@@ -90,9 +91,10 @@ export function RailSheet({ wide = false, focusKey, onClose, children }: { wide?
 }
 
 export function PlaceAddSheet({ choices, connect = null, onClose, onAccount }: { choices: RailAddChoices; connect?: { name: string } | null; onClose: () => void; onAccount?: () => void }) {
-  const server = choices.link, organization = choices.organization === true, account = choices.account === true && Boolean(onAccount);
-  const several = [organization, choices.cloud, server, account].filter(Boolean).length > 1;
-  const [view, setView] = useState<"choose" | "cloud" | "server" | "organization">(connect ? "server" : several ? "choose" : organization ? "organization" : choices.cloud ? "cloud" : "server");
+  const cloud = !PERSONAL_CLIENT && choices.cloud;
+  const server = choices.link, organization = !PERSONAL_CLIENT && choices.organization === true, account = !PERSONAL_CLIENT && choices.account === true && Boolean(onAccount);
+  const several = [organization, cloud, server, account].filter(Boolean).length > 1;
+  const [view, setView] = useState<"choose" | "cloud" | "server" | "organization">(connect ? "server" : several ? "choose" : organization ? "organization" : cloud ? "cloud" : "server");
   const [wide, setWide] = useState(false);
   const workspaces = window.ogb?.workspaces;
   const firstCloud = () => {
@@ -105,7 +107,7 @@ export function PlaceAddSheet({ choices, connect = null, onClose, onAccount }: {
       <Heading title={t("rail.add")} />
       <div className="flex flex-col gap-3 sm:flex-row">
         {organization && <Choice kind="organization" icon={<Building2 size={19} />} title={t("rail.org")} sub={t("rail.orgSub")} onClick={() => setView("organization")} />}
-        {choices.cloud && <Choice kind="cloud" icon={<Cloud size={19} />} title={t("rail.buy")} sub={t("rail.buySub")} onClick={() => setView("cloud")} />}
+        {cloud && <Choice kind="cloud" icon={<Cloud size={19} />} title={t("rail.buy")} sub={t("rail.buySub")} onClick={() => setView("cloud")} />}
         {server && <Choice kind="server" icon={<Server size={19} />} title={t("rail.own")} sub={t("rail.ownSub")} onClick={() => setView("server")} />}
         {account && <Choice kind="account" icon={<UserRound size={19} />} title={t("accounts.add")} sub={t("rail.accountSub")} onClick={() => onAccount!()} />}
       </div>

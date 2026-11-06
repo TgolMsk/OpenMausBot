@@ -1,3 +1,4 @@
+import { PERSONAL_CLIENT } from "@/lib/personal-client";
 import { useEffect, useState } from "react";
 import type { CloudAccountState } from "../../electron/cloud-account.mjs";
 import { activeLocale, t } from "@/lib/i18n";
@@ -61,8 +62,8 @@ export function placeFacts(input: {
     server: seat.server,
     bot: bot.name,
     plan: seat.plan,
-    boat: config?.box?.configured ? (config.box.included ? "included" : "own-key") : "none",
-    backend: bot.cloudBackend === "vps" ? "vps" : "box",
+    boat: !PERSONAL_CLIENT && config?.box?.configured ? (config.box.included ? "included" : "own-key") : "none",
+    backend: PERSONAL_CLIENT || bot.cloudBackend === "vps" ? "vps" : "box",
     engine: engineFacts(instance, bot.modelSelection.model),
     toolsAllowComputer: canUseMcpServer(bot.toolScope, "computer"),
     browserOn: builtInBrowserEnabled(config) && browserAvailable(config),
@@ -94,7 +95,7 @@ export function placeHasIssue(view: PlaceView): boolean {
 }
 
 export function useCloudPlanPaid(): boolean {
-  const bridge = typeof window === "undefined" || window.ogb?.remoteClient?.active ? undefined : window.ogb?.cloudAccount;
+  const bridge = PERSONAL_CLIENT || typeof window === "undefined" || window.ogb?.remoteClient?.active ? undefined : window.ogb?.cloudAccount;
   const [account, setAccount] = useState<CloudAccountState | null>(null);
   useEffect(() => {
     if (!bridge) return;
@@ -118,6 +119,7 @@ export function openPlaceAction(
   target: { botId: string; threadId?: string; place?: Place },
   dispatch: (action: Action) => void,
 ): boolean {
+  if (PERSONAL_CLIENT && ["add-boat-key", "see-plan", "open-my-cloud"].includes(id)) return false;
   const appSettings = (section: "engines" | "computer" | "cloudAccount") =>
     dispatch({ type: "toggleAppSettings", open: true, section });
   switch (id) {

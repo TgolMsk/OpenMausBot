@@ -3,6 +3,7 @@
 // and is ready in ~2s; stop→archived ~5s, resume→idle ~8s; disk persists, tmux does not. Stream tokens rotate on every
 // state change and the dedicated IP across archive/resume, so never persist either.
 import { createHash } from "node:crypto";
+import { PERSONAL_CLIENT } from "../shared/personal-client.ts";
 
 import { DATA_DIR, type AppConfig } from "./config.ts";
 import { loadEnvironmentId } from "./environment.ts";
@@ -137,6 +138,7 @@ function snapshotBoatConfig(cfg: AppConfig): AppConfig {
 
 /** An own token goes to Boat; Cloud Pro's included token only to its relay. */
 export function boatFetch(cfg: AppConfig, path: string, opts: RequestInit = {}) {
+  if (PERSONAL_CLIENT) return Promise.reject(Object.assign(new Error("Boat cloud computers are disabled in this personal client. Use your own VPS or a Local VM."), { status: 410 }));
   const account = boatAccount(cfg);
   return fetch(`${account?.api ?? boatProviderApi()}${relayPath(account, path)}`, {
     ...opts,
@@ -884,6 +886,7 @@ export async function readyBoat(cfg: AppConfig, botId: string, budgetMs = 60_000
 }
 
 export function boatAccount(cfg: AppConfig): ServiceCredential | null {
+  if (PERSONAL_CLIENT) return null;
   return boatCredential(cfg.box?.token);
 }
 
@@ -902,6 +905,7 @@ export function describeBoatAccount(cfg: AppConfig): { configured: boolean; incl
 }
 
 export async function verifyToken(token: string): Promise<{ ok: true } | { ok: false; message: string; rejected?: true }> {
+  if (PERSONAL_CLIENT) return { ok: false, message: "Boat cloud computers are disabled in this personal client. Use your own VPS or a Local VM." };
   try {
     const res = await fetch(`${boatProviderApi()}/sandboxes?limit=1`, {
       headers: { authorization: `Bearer ${token}` },

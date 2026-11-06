@@ -133,6 +133,22 @@ describe("holdIncludedServices", () => {
     vi.resetModules();
   });
 
+  it("discards bundled plan credentials while retaining the person's own keys when disabled", async () => {
+    vi.resetModules();
+    const services = await import("./included-services.ts");
+    const env = { ...cloud, OMB_CLOUD_X_URL: "https://cloud.example.test/x", OMB_CLOUD_X_TOKEN: "bundled-x", OMB_CLOUD_AI_URL: "https://cloud.example.test/ai", OMB_CLOUD_AI_TOKEN: `omb_ai_${"a".repeat(43)}` };
+    services.holdIncludedServices(env, false);
+    for (const key of services.INCLUDED_TOKEN_ENV) expect(env[key as keyof typeof env]).toBeUndefined();
+    expect(services.boatCredential(undefined, env)).toBeNull();
+    expect(services.voiceCredential(undefined, env)).toBeNull();
+    expect(services.deciderCredential(undefined, undefined, env)).toBeNull();
+    expect(services.trialCreditCredential(env)).toBeNull();
+    expect(services.xCredential(env)).toBeNull();
+    expect(services.voiceCredential("own-voice", env)).toMatchObject({ token: "own-voice", included: false });
+    expect(services.deciderCredential("own-decider", "https://own.example", env)).toMatchObject({ token: "own-decider", api: "https://own.example", included: false });
+    expect(services.researchCredential("own-research", env)).toMatchObject({ token: "own-research", included: false });
+  });
+
   it("keeps the tokens in memory and removes them from the environment, so nothing started later inherits them", async () => {
     for (const [name, value] of Object.entries(cloud)) vi.stubEnv(name, value);
     // A fresh module: the hold is process-wide state.

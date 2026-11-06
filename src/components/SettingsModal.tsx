@@ -1,3 +1,4 @@
+import { PERSONAL_CLIENT } from "@/lib/personal-client";
 import { useEffect, useRef, useState } from "react";
 import { Archive, ChartNoAxesColumn, Cloud, CloudDownload, Coins, Download, FlaskConical, KeyRound, LockKeyhole, Monitor, Palette, ScrollText, Search, Settings, Sparkles, TabletSmartphone, Terminal, User, Users, X, Building2, Zap, BookOpen, ImagePlus } from "lucide-react";
 import { useStore, type AppSettingsSection } from "@/state/store";
@@ -198,6 +199,7 @@ export function SettingsModal() {
   const baseSections = SECTIONS.filter((entry) => !remoteActive || entry.id === "companion" || entry.id === "appearance" || entry.id === "desktopWorkspaces")
     .filter((entry) => entry.id !== "desktopWorkspaces" || Boolean(window.ogb?.environments))
     .filter((entry) => entry.id !== "organization" || Boolean(window.ogb?.organization))
+    .filter((entry) => !PERSONAL_CLIENT || entry.id !== "cloudAccount")
     .filter((entry) => entry.id !== "cloudAccount" || Boolean(window.ogb?.cloudAccount || (window.ogb?.cloudPlan && state.config?.cloudHome === true)))
     .filter((entry) => entry.id !== "workspaces" || workspacesAvailable(state.config))
     .filter((entry) => entry.id !== "people" || (!window.ogb && state.config?.cloudHome !== true))
@@ -328,7 +330,7 @@ export function SettingsModal() {
       case "organization":
         return window.ogb?.organization && !remoteActive ? <OrganizationSettings /> : null;
       case "cloudAccount":
-        return (window.ogb?.cloudAccount || (window.ogb?.cloudPlan && state.config?.cloudHome === true)) && !remoteActive
+        return !PERSONAL_CLIENT && (window.ogb?.cloudAccount || (window.ogb?.cloudPlan && state.config?.cloudHome === true)) && !remoteActive
           ? <CloudAccountSettings linkRequest={state.appSettingsCloudLink} cloudHome={state.config?.cloudHome === true} teamHome={state.config?.team}
             onConnectPhone={() => dispatch(phonePairingSettingsAction())} onAddCloud={advanced ? () => dispatch({ type: "openCloudAdd", source: "app_settings" }) : undefined}
             onSignIn={() => dispatch({ type: "openCloudAdd", source: "app_settings", signIn: true })} />
@@ -340,8 +342,8 @@ export function SettingsModal() {
             <DefaultBotSidebarRow />
             <TalkShortcutRow />
 
-            <ProSettingsCard />
-            <CloudUsageSettings />
+            {!PERSONAL_CLIENT && <ProSettingsCard />}
+            {!PERSONAL_CLIENT && <CloudUsageSettings />}
             <Card title={t("settings.profile.title")} subtitle={t("settings.profile.sharedSubtitle")}>
               <ProfileFields />
             </Card>
@@ -350,8 +352,8 @@ export function SettingsModal() {
             <OpenAtLoginRow />
             <NewBotEffortRow />
             <SavedStepsRow />
-            <AnalyticsRow />
-            <UpdatesConsentRow />
+            {!PERSONAL_CLIENT && <AnalyticsRow />}
+            {!PERSONAL_CLIENT && <UpdatesConsentRow />}
             <DefaultBotSettings />
 
             <Card title={t("settings.roomTurns.title")} subtitle={t("settings.roomTurns.subtitle")}>

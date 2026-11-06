@@ -197,7 +197,7 @@ describe("plans", () => {
       expect(() => deletePlan({ registry: incomplete, slug: "acme", keepData: false, layout })).toThrow("operator recovery");
     }
     const two = createPlan({ registry: created.registry, slug: "globex", seed: { admins: ["g@x.test"], members: [] }, now, layout }).registry;
-    expect(argvOf(upgradePlan({ registry: suspendPlan({ registry: two, slug: "globex", layout }).registry }))).toEqual(["npm install -g openmausbot@latest", "systemctl restart openmausbot@acme.service"]);
+    expect(() => upgradePlan({ registry: suspendPlan({ registry: two, slug: "globex", layout }).registry })).toThrow("Deploy updates from your personal-client branch");
   });
 
   it("seeds only the trusted portal gateway and reserves the portal hostname", () => {

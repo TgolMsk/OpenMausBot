@@ -1,3 +1,4 @@
+import { PERSONAL_CLIENT } from "@/lib/personal-client";
 // The phc_ token is a write-only public key, safe to ship in the client.
 // posthog-js loads on demand: a static import would put ~240 kB into the startup bundle.
 import type { CaptureResult, PostHog } from "posthog-js";
@@ -19,6 +20,7 @@ let pending: Array<(ph: PostHog) => void> = [];
 let choice: boolean | undefined;
 
 export function analyticsEnabled(): boolean {
+  if (PERSONAL_CLIENT) return false;
   if (choice !== undefined) return choice;
   const desktop = desktopSwitch()?.enabled();
   if (typeof desktop === "boolean") return desktop;

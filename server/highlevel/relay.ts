@@ -1,19 +1,21 @@
 // The OpenMausBot relay (accounts.openmausbot.com) holds HighLevel's client secret; this server only ever sees
 // tokens. Contract: spec §9 (start → authorizationUrl, claim once → tokens, refresh → new pair).
 import { z } from "zod";
+import { PERSONAL_CLIENT } from "../../shared/personal-client.ts";
 
 export const HIGHLEVEL_RELAY_URL_DEFAULT = "https://accounts.openmausbot.com";
 export const HIGHLEVEL_RELAY_ENV = "OMB_HIGHLEVEL_RELAY_URL";
 const RELAY_TIMEOUT_MS = 20_000;
 const MAX_RELAY_BYTES = 64_000;
 
-/** The relay URL, or null when the integration is switched off (`OMB_HIGHLEVEL_RELAY_URL=off`) or misconfigured. */
+/** The relay URL, or null when off or misconfigured. Personal clients require their own explicit relay. */
 export function highlevelRelayUrl(env: NodeJS.ProcessEnv = process.env): string | null {
   const raw = env[HIGHLEVEL_RELAY_ENV]?.trim();
-  if (raw === undefined || raw === "") return HIGHLEVEL_RELAY_URL_DEFAULT;
+  if (raw === undefined || raw === "") return PERSONAL_CLIENT ? null : HIGHLEVEL_RELAY_URL_DEFAULT;
   if (/^(off|none|0|false)$/iu.test(raw)) return null;
   try {
     const url = new URL(raw);
+    if (PERSONAL_CLIENT && (url.hostname === "openmausbot.com" || url.hostname.endsWith(".openmausbot.com"))) return null;
     if (url.protocol !== "https:" && !(url.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname))) return null;
     return url.origin + url.pathname.replace(/\/+$/u, "");
   } catch {

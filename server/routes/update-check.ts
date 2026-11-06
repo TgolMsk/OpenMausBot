@@ -1,5 +1,6 @@
 // GET /api/updates/check: whether a newer release exists, and how this install is updated. Read-only, so client sessions may ask.
 import { serverVersion } from "../environment.ts";
+import { PERSONAL_CLIENT } from "../../shared/personal-client.ts";
 import { SERVER_ROOT } from "../proxy-paths.ts";
 import { createUpdateChecker, installKind, type UpdateCheck } from "../update-check.ts";
 import { PASS, type RouteHandler } from "./table.ts";
@@ -20,5 +21,8 @@ export function createUpdateCheckRoutes(deps: UpdateCheckRouteDeps): RouteHandle
 }
 
 export function serverUpdateChecker(where: { desktopManaged: boolean; managed: boolean }): () => Promise<UpdateCheck> {
-  return createUpdateChecker({ current: serverVersion(), install: installKind({ ...where, serverRoot: SERVER_ROOT }) });
+  const current = serverVersion();
+  const install = installKind({ ...where, serverRoot: SERVER_ROOT });
+  if (PERSONAL_CLIENT) return async () => ({ current, install, available: false });
+  return createUpdateChecker({ current, install });
 }

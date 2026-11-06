@@ -3,6 +3,7 @@ import { COMPANION_INSTALLATION_CREDENTIAL_FIELD, resolveCompanionControlPlaneUR
 import { createCompanionE2E } from "./companion-e2e.mjs";
 export { deviceCounts } from "./companion-e2e.mjs";
 import { createControlPlaneClient } from "./control-plane-client.mjs";
+import { personalServiceUrl } from "./personal-client.mjs";
 
 const signedOut = () => Promise.reject(Object.assign(new Error("signed out"), { code: "signed_out" }));
 
@@ -11,7 +12,7 @@ const signedOut = () => Promise.reject(Object.assign(new Error("signed out"), { 
 export function createDesktopCompanionE2E({ isPackaged, appVersion, readCredentials, updateCredentials, powerMonitor, log }) {
   let client = null;
   try {
-    const baseURL = resolveCompanionControlPlaneURL({ isPackaged });
+    const baseURL = personalServiceUrl(resolveCompanionControlPlaneURL({ isPackaged }));
     client = baseURL ? createControlPlaneClient({ baseURL }) : null;
   } catch {
     client = null;

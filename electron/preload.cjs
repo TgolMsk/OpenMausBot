@@ -3,6 +3,8 @@ const { contextBridge, ipcRenderer, webFrame, webUtils } = require("electron");
 
 // Sandboxed preloads get Electron's restricted `require`, which cannot load sibling CommonJS files.
 const desktopRemoteClient = process.argv.includes("--openmausbot-remote-client");
+const personalClient = process.argv.includes("--omb-personal-client=1");
+const companyDesktop = !personalClient && process.argv.includes("--omb-company-desktop=1");
 
 let pendingPackageInstallUrl = null;
 const packageInstallListeners = new Set();
@@ -111,7 +113,7 @@ const COMPANY_BACKUP_CLIENT_KEYS = [
   "openmausbot.sidebarCollapsedSections.v1", "openmausbot.sidebarSectionOrder.v1",
   "omb-analytics-opt-out", "openmausbot.remote-voice.v1",
 ];
-if (isLocalPage && !desktopRemoteClient && process.argv.includes("--omb-company-desktop=1")) {
+if (isLocalPage && !desktopRemoteClient && companyDesktop) {
   ipcRenderer.on("company-backups:collect-client-state", (_event, request) => {
     if (!request || typeof request.requestId !== "string" || !/^[a-f0-9-]{36}$/.test(request.requestId)) return;
     try {
@@ -212,7 +214,7 @@ const bridge = {
   },
   // Buying another Cloud from the rail's ＋, on this app's page or a hosted Cloud's: plain words in, what the sheet says
   // out; the account, the token and the checkout page stay in main. Only from the person's click where it opens anything.
-  cloudAdd: {
+  cloudAdd: !personalClient ? {
     state: () => ipcRenderer.invoke("cloud-add:state"),
     start: (tier, name, color, source) => isLocalPage || navigator.userActivation?.isActive === true
       ? ipcRenderer.invoke("cloud-add:start", String(tier), String(name), color === null ? null : String(color), ...(source == null ? [] : [String(source)]))
@@ -227,7 +229,7 @@ const bridge = {
     sheet: (open) => ipcRenderer.invoke("cloud-add:sheet", open === true),
     organization: (name, color) => isLocalPage || navigator.userActivation?.isActive === true
       ? ipcRenderer.invoke("cloud-add:organization", String(name), color === null ? null : String(color)) : Promise.reject(new Error("Choose Create organization.")),
-  },
+  } : undefined,
   getCapabilities: () => ipcRenderer.invoke("desktop:capabilities"),
   onCapabilitiesChanged: (cb) => {
     const handler = (_event, capabilities) => cb(capabilities);
@@ -259,14 +261,14 @@ const bridge = {
     keepAwake: (enabled) => ipcRenderer.invoke("routines:keep-awake", enabled),
   },
   /** Secrets stay in the main process; the renderer sees only status and narrow actions. */
-  companionAccount: {
+  companionAccount: !personalClient ? {
     state: () => ipcRenderer.invoke("companion-account:state"),
     requestCode: (email) => ipcRenderer.invoke("companion-account:request-code", email),
     verifyCode: (email, code) => ipcRenderer.invoke("companion-account:verify-code", email, code),
     retry: () => ipcRenderer.invoke("companion-account:retry"),
     prepare: () => ipcRenderer.invoke("companion-account:prepare"),
     signOut: () => ipcRenderer.invoke("companion-account:sign-out"),
-  },
+  } : undefined,
   /** Full/Custom never go through the loopback API, only the embedded server's private utilityProcess port. */
   approvals: {
     setMode: (botId, mode, options) => ipcRenderer.invoke("approvals:set-trusted-mode", botId, mode, options),
@@ -398,7 +400,7 @@ const bridge = {
   },
   setCredential: (name, value) => ipcRenderer.invoke("credential:set", name, value),
 
-  updater: {
+  updater: !personalClient ? {
     check: () => ipcRenderer.invoke("update:check"),
     install: () => isLocalPage || navigator.userActivation?.isActive === true
       ? ipcRenderer.invoke("update:install") : Promise.reject(new Error("Choose Restart to update.")),
@@ -412,7 +414,7 @@ const bridge = {
       ipcRenderer.on("update:state", handler);
       return () => ipcRenderer.removeListener("update:state", handler);
     },
-  },
+  } : undefined,
 
   /** A remote page may read the list but never change where this window goes. */
   environments: {
@@ -428,7 +430,7 @@ const bridge = {
       return () => ipcRenderer.removeListener("workspaces:open-settings", handler);
     },
   },
-  cloudAccount: process.argv.includes("--omb-company-desktop=1") ? {
+  cloudAccount: companyDesktop ? {
     state: () => ipcRenderer.invoke("cloud-account:state"),
     begin: () => ipcRenderer.invoke("cloud-account:begin"),
     signInAgain: () => ipcRenderer.invoke("cloud-account:signInAgain"),
@@ -480,7 +482,7 @@ const bridge = {
     },
   } : undefined,
   // Either page: the one-time move's line.
-  cloudSendPage: process.argv.includes("--omb-company-desktop=1") ? {
+  cloudSendPage: companyDesktop ? {
     notice: () => ipcRenderer.invoke("cloud-send:notice"),
     dismiss: signature => ipcRenderer.invoke("cloud-send:dismiss", String(signature)),
     moveRetry: () => isLocalPage || navigator.userActivation?.isActive === true
@@ -521,7 +523,7 @@ const bridge = {
     },
   },
   // Who is signed in on this device: this app's own pages only (main checks the sender). No token ever comes through here.
-  accounts: process.argv.includes("--omb-company-desktop=1") ? {
+  accounts: companyDesktop ? {
     list: () => ipcRenderer.invoke("accounts:list"),
     signOut: id => ipcRenderer.invoke("accounts:sign-out", String(id)),
     addStart: email => ipcRenderer.invoke("accounts:add-start", String(email)),
@@ -544,12 +546,12 @@ const bridge = {
     },
   } : undefined,
   // Any place's page: opens the accounts sheet on the rail's page, from the person's click. The page learns nothing of them.
-  accountSheet: process.argv.includes("--omb-company-desktop=1") ? {
+  accountSheet: companyDesktop ? {
     offered: () => ipcRenderer.invoke("accounts:offered"),
     open: () => isLocalPage || navigator.userActivation?.isActive === true
       ? ipcRenderer.invoke("accounts:open") : Promise.reject(new Error("Choose your account to open it.")),
   } : undefined,
-  cloudPlan: process.argv.includes("--omb-company-desktop=1") ? {
+  cloudPlan: companyDesktop ? {
     state: () => ipcRenderer.invoke("cloud-plan:state"),
     manage: () => isLocalPage || navigator.userActivation?.isActive === true
       ? ipcRenderer.invoke("cloud-plan:manage") : Promise.reject(new Error("Choose Manage to open your Plan page.")),
@@ -572,7 +574,7 @@ const bridge = {
     restartNow: () => navigator.userActivation?.isActive === true
       ? ipcRenderer.invoke("cloud-plan:restart-now") : Promise.reject(new Error("Choose Restart now to restart the Cloud.")),
   } : undefined,
-  organization: process.argv.includes("--omb-company-desktop=1") ? {
+  organization: companyDesktop ? {
     settingsOpened: () => ipcRenderer.invoke("organization:settings-opened"),
     state: () => ipcRenderer.invoke("organization:state"),
     begin: input => ipcRenderer.invoke("organization:begin", input),
@@ -586,7 +588,7 @@ const bridge = {
       return () => ipcRenderer.removeListener("organization:state-changed", handler);
     },
   } : undefined,
-  companyBackups: process.argv.includes("--omb-company-desktop=1") ? {
+  companyBackups: companyDesktop ? {
     state: () => ipcRenderer.invoke("company-backups:state"),
     list: () => ipcRenderer.invoke("company-backups:list"),
     create: input => ipcRenderer.invoke("company-backups:create", input),
@@ -625,13 +627,13 @@ const bridge = {
     repair: () => ipcRenderer.invoke("home:repair"),
     updating: onHomePage && reloadedForUpdate(),
   },
-  updatesConsent: {
+  updatesConsent: !personalClient ? {
     state: () => ipcRenderer.invoke("updates-consent:state"),
     choose: choice => ipcRenderer.invoke("updates-consent:choose", {
       status: String(choice?.status),
       ...(typeof choice?.email === "string" ? { email: choice.email } : {}),
     }),
-  },
+  } : undefined,
   desktopProfile: {
     systemName: () => ipcRenderer.invoke("desktop-profile:system-name"),
   },

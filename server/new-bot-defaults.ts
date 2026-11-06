@@ -5,6 +5,7 @@ import { EFFORT_LEVELS, MAUS_COLOR_NAMES } from "../shared/wire.ts";
 import { isModelVariant } from "./contracts.ts";
 import { normalizeCronSchedule } from "../shared/routine-schedule.ts";
 import { parseToolScope, type ToolScope } from "../shared/tool-scope.ts";
+import { PERSONAL_CLIENT } from "../shared/personal-client.ts";
 
 const strings = (max: number, length: number) => z.array(z.string().max(length)).max(max);
 const clock = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
@@ -133,6 +134,7 @@ export function resolveBotCreationDefaults(saved: NewBotDefaults | undefined, bo
   }
   const resolved = botDefaultsProfileSchema.safeParse(profile);
   if (!resolved.success) throw Object.assign(settingsError(resolved.error), { status: 400 });
+  if (PERSONAL_CLIENT && resolved.data.cloudBackend === "box") resolved.data.cloudBackend = "vps";
   if (!resolved.data.name?.trim()) delete resolved.data.name;
   return { ...template, profile: resolved.data };
 }

@@ -57,9 +57,9 @@ function trialCreditService(url: string | undefined, token: string | undefined):
 
 let held: Included | null = null;
 
-/** Dropped from the environment at startup so nothing the server starts can inherit them. */
-export function holdIncludedServices(env: NodeJS.ProcessEnv = process.env): void {
-  held = includedFrom(env);
+/** Dropped from the environment at startup so nothing the server starts can inherit them; disabled clients discard them. */
+export function holdIncludedServices(env: NodeJS.ProcessEnv = process.env, enabled = true): void {
+  held = includedFrom(enabled ? env : {});
   for (const name of INCLUDED_TOKEN_ENV) delete env[name];
 }
 

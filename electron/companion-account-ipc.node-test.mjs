@@ -20,6 +20,7 @@ test("the desktop holds its address on demand, read from the running companion",
   let answer = async () => ({ enabled: true, devices: [], pairing: null });
   const stateReads = [];
   const context = vm.createContext({
+    PERSONAL_CLIENT: false,
     companionAccountService: null,
     resolveCompanionControlPlaneURL: () => "",
     createControlPlaneClient: () => null,
@@ -65,6 +66,13 @@ test("the desktop holds its address on demand, read from the running companion",
     throw new Error("control port closed");
   };
   assert.equal(await options.managedEndpointNeeded(), null);
+});
+
+test("the personal client refuses a hosted phone account before constructing its network client", () => {
+  const context = vm.createContext({ PERSONAL_CLIENT: true });
+  vm.runInContext(`${slice("function ensureCompanionAccountService()", "// Everything the bug-report bundle needs")}
+    globalThis.ensure = ensureCompanionAccountService;`, context);
+  assert.throws(() => context.ensure(), /Hosted phone accounts are unavailable/);
 });
 
 test("prepare is local-only, takes nothing from the page, and an organisation can refuse it", async () => {

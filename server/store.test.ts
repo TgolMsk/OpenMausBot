@@ -33,6 +33,22 @@ describe("Store", () => {
     rmSync(DATA_DIR, { recursive: true, force: true });
   });
 
+  it("uses the person's VPS for new bots and migrates legacy Boat backend choices", () => {
+    const store = new Store(selection);
+    const bot = store.createBot({ name: "Personal helper" });
+    expect(bot.cloudBackend).toBe("vps");
+    expect(store.patchBot(bot.id, { cloudBackend: "box" })?.cloudBackend).toBe("vps");
+    const file = join(DATA_DIR, "bots.json");
+    const rows = JSON.parse(readFileSync(file, "utf8")) as BotRecord[];
+    rows[0]!.cloudBackend = "box";
+    writeFileSync(file, JSON.stringify(rows));
+    expect(new Store(selection).bot(bot.id)?.cloudBackend).toBe("vps");
+    delete rows[0]!.cloudBackend;
+    writeFileSync(file, JSON.stringify(rows));
+    expect(new Store(selection).bot(bot.id)?.cloudBackend).toBe("vps");
+    expect((JSON.parse(readFileSync(file, "utf8")) as BotRecord[])[0]?.cloudBackend).toBe("vps");
+  });
+
   it("retains tool selection across restarts and distinguishes clearing from no tools", () => {
     const store = new Store(selection);
     const bot = store.createBot({ name: "Scoped drafter" });
@@ -1092,7 +1108,7 @@ describe("Store", () => {
     expect(reloaded.projectBotForTask(bot.id, sibling.threadId)?.approvalMode).toBe("full");
   });
 
-  it("normalizes persisted cloud backends without changing valid or absent values", () => {
+  it("normalizes every persisted cloud backend to the person's own VPS", () => {
     const store = new Store(selection);
     const boat = store.createBot();
     const vps = store.createBot();
@@ -1106,16 +1122,16 @@ describe("Store", () => {
     writeFileSync(join(DATA_DIR, "bots.json"), JSON.stringify(raw));
 
     const reloaded = new Store(selection);
-    expect(reloaded.bot(boat.id)?.cloudBackend).toBe("box");
+    expect(reloaded.bot(boat.id)?.cloudBackend).toBe("vps");
     expect(reloaded.bot(vps.id)?.cloudBackend).toBe("vps");
-    expect(reloaded.bot(invalid.id)?.cloudBackend).toBeUndefined();
-    expect(reloaded.bot(absent.id)?.cloudBackend).toBeUndefined();
+    expect(reloaded.bot(invalid.id)?.cloudBackend).toBe("vps");
+    expect(reloaded.bot(absent.id)?.cloudBackend).toBe("vps");
 
     const saved: BotRecord[] = JSON.parse(readFileSync(join(DATA_DIR, "bots.json"), "utf8"));
-    expect(saved.find((bot) => bot.id === boat.id)?.cloudBackend).toBe("box");
+    expect(saved.find((bot) => bot.id === boat.id)?.cloudBackend).toBe("vps");
     expect(saved.find((bot) => bot.id === vps.id)?.cloudBackend).toBe("vps");
-    expect(saved.find((bot) => bot.id === invalid.id)).not.toHaveProperty("cloudBackend");
-    expect(saved.find((bot) => bot.id === absent.id)).not.toHaveProperty("cloudBackend");
+    expect(saved.find((bot) => bot.id === invalid.id)?.cloudBackend).toBe("vps");
+    expect(saved.find((bot) => bot.id === absent.id)?.cloudBackend).toBe("vps");
   });
 
   it("migrates legacy browser profile references without collapsing case-distinct accounts", () => {

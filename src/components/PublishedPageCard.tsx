@@ -1,3 +1,4 @@
+import { PERSONAL_CLIENT } from "@/lib/personal-client";
 import { useState } from "react";
 import { ArrowUpRight, Check, Copy, Globe, Loader2, X } from "lucide-react";
 import type { PublishedPageCard as Card } from "../../shared/published-page";
@@ -64,7 +65,7 @@ export function PublishedPageCard({ message }: { message: Message }) {
       {card.state === "unpublished" && <p className="mt-1 text-[13px] text-ink-secondary">{t("chat.page.unpublished")}</p>}
       {card.state === "limit" && <>
         <p dir="auto" className="mt-1 text-[13px] leading-snug text-ink-secondary">{limitLine(card)}</p>
-        {card.upgrade && bridge && <button type="button" className={cn(ASK_PRIMARY_BUTTON, "mt-2")}
+        {!PERSONAL_CLIENT && card.upgrade && bridge && <button type="button" className={cn(ASK_PRIMARY_BUTTON, "mt-2")}
           onClick={() => dispatch({ type: "openCloudAdd", source: "app_pages" })}>{t("chat.page.morePages")}</button>}
       </>}
     </div>

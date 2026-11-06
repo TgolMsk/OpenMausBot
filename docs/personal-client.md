@@ -45,7 +45,17 @@ pnpm --dir /Users/ws/Project/BotIvn dev:personal
 | Electron 桌面壳 | `electron/main.mjs`、`electron/preload.cjs` |
 | 自用开发启动器 | `scripts/dev-personal.mjs`、`electron/personal-dev.mjs` |
 
-云电脑、第三方连接器与云语音按需配置。开发模式的 Full / Custom 审批模式需要打包版内嵌后端，原版已有这一限制。
+可按需配置自己的 VPS、Local VM、第三方连接器和语音 API。开发模式的 Full / Custom 审批模式需要打包版内嵌后端，原版已有这一限制。
+
+## 商业服务清理范围
+
+- 移除原作者的 Cloud 账户、套餐购买、订阅、升级和试用入口，以及 Boat、赞助和产品推广提示。
+- 停用官方托管的连接器、手机中转、套餐赠送的模型/语音/研究额度和页面发布。
+- 停用官方桌面更新、服务器更新检查及会安装回官方版本的 Fleet 升级命令；后续从本分支更新。
+- 官方问题上报和使用统计不再自动连接；可明确配置自己的问题上报地址。
+- 保留本地 CLI、模型使用量、自配模型/语音 API、MCP、自己的服务器和本地数据备份。
+
+自用策略固定在 `shared/personal-client.ts` 和 `electron/personal-client.mjs`，用户界面不提供切回商业版的开关。历史协议和底层模块仍保留，便于合并上游修复；运行入口和后台连接已按自用策略关闭。
 
 ## 验证
 

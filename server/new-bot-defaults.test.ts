@@ -3,6 +3,12 @@ import { newBotDefaultsSchema, resolveBotCreationDefaults } from "./new-bot-defa
 import { parseConfigPatch } from "./config.ts";
 
 describe("new-bot templates", () => {
+  it("moves a saved or explicit Boat backend to the person's own VPS in the personal client", () => {
+    const saved = newBotDefaultsSchema.parse({ profile: { computer: "cloud", cloudBackend: "box" } });
+    expect(resolveBotCreationDefaults(saved, {}).profile).toMatchObject({ computer: "cloud", cloudBackend: "vps" });
+    expect(resolveBotCreationDefaults(undefined, { settings: { cloudBackend: "box" } }).profile.cloudBackend).toBe("vps");
+  });
+
   it("preserves restricted and empty tool defaults while allowing an explicit owner reset", () => {
     const defaults = newBotDefaultsSchema.parse({ profile: { toolScope: { allow: ["native:read", "native:read"] } } });
     expect(defaults.profile).toEqual({ toolScope: { allow: ["native:read"] } });

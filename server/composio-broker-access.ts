@@ -2,6 +2,17 @@
 // service (the desktop app hands its URL and token over; a Cloud computer reads
 // them from the environment). `composio.ts` re-exports these.
 import { z } from "zod";
+import { PERSONAL_CLIENT } from "../shared/personal-client.ts";
+
+export function personalBrokerAllowed(value: string): boolean {
+  if (!PERSONAL_CLIENT) return true;
+  try {
+    const { hostname } = new URL(value);
+    return hostname !== "openmausbot-composio.milindsoni201.workers.dev" && hostname !== "openmausbot.com" && !hostname.endsWith(".openmausbot.com");
+  } catch {
+    return false;
+  }
+}
 
 let managedBrokerAccess: { url: string; token: string } | null | undefined;
 
@@ -39,7 +50,7 @@ export function setManagedBrokerAccess(access: unknown): void {
     return;
   }
   const parsed = z.object({ url: z.string().url(), token: z.string().regex(managedBrokerToken) }).strict().parse(access);
-  managedBrokerAccess = { url: normalizeManagedBrokerUrl(parsed.url), token: parsed.token };
+  managedBrokerAccess = personalBrokerAllowed(parsed.url) ? { url: normalizeManagedBrokerUrl(parsed.url), token: parsed.token } : null;
 }
 
 export type BrokerAccess = { url: string; token: string }; // `as` below: a Team Cloud member's own installation, never a project key
@@ -48,6 +59,7 @@ export function brokerAccess(): BrokerAccess | null {
   const url = process.env.OMB_COMPOSIO_BROKER_URL?.trim();
   const token = process.env.OMB_COMPOSIO_BROKER_TOKEN?.trim();
   if (!url || !token) return null;
+  if (!personalBrokerAllowed(url)) return null;
   if (!managedBrokerToken.test(token)) throw new Error("The connected-apps service token is invalid");
   return { url: normalizeManagedBrokerUrl(url), token };
 }

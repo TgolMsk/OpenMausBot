@@ -2,6 +2,7 @@ import { chmodSync, existsSync, readFileSync, mkdirSync, rmSync, statSync, unlin
 import { join } from "node:path"; import { isDeepStrictEqual } from "node:util";
 
 import { OwnedFile, writeFileAtomic } from "./atomic.ts"; import { saveSoon } from "./save-batch.ts"; import { discardNativeLog } from "./drivers/native.ts";
+import { PERSONAL_CLIENT } from "../shared/personal-client.ts";
 import { commitRegistryChange, keptRevocation, saveRegistryFor, touchesPermissions } from "./registry-save.ts";
 import { parseToolScope, toolScopeWidens } from "../shared/tool-scope.ts"; import { grantScopedApps } from "../shared/connector-scopes.ts";
 import { reorderStable } from "../shared/bot-order.ts"; import { trimOutboundPolicy } from "../shared/outbound.ts";
@@ -359,6 +360,10 @@ export class Store {
       }
       if (b.cloudBackend !== undefined && b.cloudBackend !== "box" && b.cloudBackend !== "vps") {
         delete b.cloudBackend;
+        botsMigrated = true;
+      }
+      if (PERSONAL_CLIENT && b.cloudBackend !== "vps") {
+        b.cloudBackend = "vps";
         botsMigrated = true;
       }
       if (b.autoStartVps !== undefined && b.autoStartVps !== true && b.autoStartVps !== false) {
@@ -1330,6 +1335,7 @@ export class Store {
       soul: profile.soul ?? "",
       soulHash: soulHash(profile.soul ?? ""),
       notifications: true,
+      ...(PERSONAL_CLIENT ? { cloudBackend: "vps" as const } : {}),
       color: profile.color ?? rotationColor(this.bots.length), mascotFaceColor: profile.mascotFaceColor ?? undefined,
       ...(profile.mascotExpression ? { mascotExpression: profile.mascotExpression } : {}),
       ...(profile.mascotBody ? { mascotBody: profile.mascotBody } : {}),
@@ -1409,6 +1415,7 @@ export class Store {
         nextBots[at] = next;
       }
       if (operation.fields.chiefOfStaff === false) delete next.managedSections;
+      if (PERSONAL_CLIENT) next.cloudBackend = "vps";
       next.section = sectionKey(next.section) || undefined;
       if (operation.fields.soul !== undefined) { next.soulHash = soulHash(operation.fields.soul); next.soulDrift = false; }
       changed.push(next);
@@ -1511,6 +1518,7 @@ export class Store {
   patchBot(id: string, patch: Partial<BotRecord>): BotRecord | null {
     const bot = this.bot(id);
     if (!bot) return null;
+    if (PERSONAL_CLIENT && Object.hasOwn(patch, "cloudBackend")) patch = { ...patch, cloudBackend: "vps" };
     if (patch.connectorTools !== undefined) {
       const parsed = parseConnectorTools(patch.connectorTools);
       if (!parsed.ok) throw new Error(parsed.error);

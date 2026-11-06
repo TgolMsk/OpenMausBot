@@ -1,3 +1,4 @@
+import { PERSONAL_CLIENT } from "@/lib/personal-client";
 import { useEffect, useRef } from "react";
 import { preloadConnectedApps } from "@/lib/connected-apps";
 import { localDesktopPage } from "@/components/onboarding/WelcomeGate";
@@ -32,7 +33,7 @@ export function useUsageSnapshot(): void {
   useEffect(() => {
     latest.current = state;
   });
-  const ready = owner === true && snapshotReady(state, window.ogb?.remoteClient?.active !== true);
+  const ready = !PERSONAL_CLIENT && owner === true && snapshotReady(state, window.ogb?.remoteClient?.active !== true);
   useEffect(() => {
     if (!ready) return;
     const check = () => void sendDailySnapshot(latest.current, browserSources(latest.current.config));

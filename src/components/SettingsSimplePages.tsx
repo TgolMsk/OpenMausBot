@@ -1,3 +1,4 @@
+import { PERSONAL_CLIENT } from "@/lib/personal-client";
 import type { ReactNode } from "react";
 import type { AppSettingsSection } from "@/state/store";
 import { t } from "@/lib/i18n";
@@ -54,7 +55,7 @@ export function SimpleGeneralPage({ has, peopleOpen, onLooks }: { has: Has; peop
         <SettingsGroup label={t("settings.group.account")} block="general">
           <SettingsRows>
             {has("general") && <ProfileSummaryRow />}
-            {has("general") && <CloudPlanRow place="account" />}
+            {!PERSONAL_CLIENT && has("general") && <CloudPlanRow place="account" />}
             {has("people") && <div data-settings-block="people" className="scroll-mt-4"><PeopleSection simple startOpen={peopleOpen} /></div>}
           </SettingsRows>
         </SettingsGroup>
@@ -88,7 +89,7 @@ export function SimpleGeneralPage({ has, peopleOpen, onLooks }: { has: Has; peop
             <DefaultBotSidebarRow simple />
             <TalkShortcutRow />
             <AttachmentStorageSettings />
-            <AnalyticsRow simple />
+            {!PERSONAL_CLIENT && <AnalyticsRow simple />}
           </SettingsRows>
         </SettingsGroup>
       )}
@@ -170,7 +171,7 @@ export function SimpleBillingPage({ has, disclose, cloudAccount }: { has: Has; d
           {has("usage") && <AdminOnly note="settings.adminOnly.usage"><UsageSection /></AdminOnly>}
         </SettingsDisclosureRow>
       )}
-      {has("cloudAccount") && (
+      {!PERSONAL_CLIENT && has("cloudAccount") && (
         <SettingsGroup label={t("settings.simple.billing.plan")} block="cloudAccount" footnote={<CloudPlanFootnote />}>
           <SettingsRows><CloudPlanRow place="plan" usage={usage} upgrade={upgrade} /></SettingsRows>
           {signedOut ? null : <div className="flex flex-col gap-4">{cloudAccount}</div>}
@@ -201,7 +202,7 @@ export function SimpleUpdatesPage({ remoteActive }: { remoteActive: boolean }) {
     <SettingsGroup block="updates">
       <SettingsRows>
         {window.ogb?.updater ? <UpdatesRow title={versionTitle()} /> : <ServerUpdatesRow />}
-        <UpdatesConsentRow />
+        {!PERSONAL_CLIENT && <UpdatesConsentRow />}
         {!remoteActive && <ReplayTourRow />}
         <DiagnosticsRow simple />
       </SettingsRows>

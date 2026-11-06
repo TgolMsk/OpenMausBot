@@ -1,3 +1,4 @@
+import { PERSONAL_CLIENT } from "@/lib/personal-client";
 import { useEffect, useState } from "react";
 import { activeLocale, t } from "@/lib/i18n";
 import type { LocaleKey } from "@/locales";
@@ -97,7 +98,7 @@ export function HomeScreen({ bridge, manage }: { bridge: HomeBridge; manage?: ()
     retry: () => bridge.retry().then((next) => setView(next)),
     ...(manage ? { manage, buy: manage, card: manage, continue: async () => { if (!(reopen && await reopen().catch(() => false))) await manage(); } } : {}),
   };
-  const button = text.action && text.action !== "sign-in" && text.action !== "manage" ? text.action : null;
+  const button = text.action && (!PERSONAL_CLIENT || text.action === "retry") && text.action !== "sign-in" && text.action !== "manage" ? text.action : null;
   const removable = (view?.screen === "ended" || view?.screen === "payment") && view.removable === true && typeof bridge.remove === "function";
   return (
     <main data-home-screen={view?.screen ?? "opening"} className="flex min-h-screen items-center justify-center bg-app px-6 text-ink" style={{ WebkitAppRegion: "drag" } as React.CSSProperties}>
@@ -110,7 +111,7 @@ export function HomeScreen({ bridge, manage }: { bridge: HomeBridge; manage?: ()
         {view?.screen === "setup" && <CloudSetupSteps step={view.step ?? "reserving"} />}
         {text.reason && <p data-home-reason className="text-[13px] leading-relaxed text-ink-secondary">{text.reason}</p>}
         {text.action === "sign-in" && <button type="button" className="ui-button ui-button-primary mt-2" onClick={() => act(() => bridge.signIn())}>{t("homeScreen.signInButton")}</button>}
-        {text.action === "manage" && manage && <button type="button" className="ui-button mt-2" onClick={() => act(manage)}>{t("cloudAccount.manageInBrowser")}</button>}
+        {!PERSONAL_CLIENT && text.action === "manage" && manage && <button type="button" className="ui-button mt-2" onClick={() => act(manage)}>{t("cloudAccount.manageInBrowser")}</button>}
         {button && run[button] && <button type="button" data-home-action={button} className={button === "retry" ? "ui-button mt-2" : "ui-button ui-button-primary mt-2"}
           onClick={() => act(run[button]!)}>{t(BUTTON[button])}</button>}
         {removable && <RemoveFromList name={view.name ?? t("cloudSetup.myCloud")} remove={() => bridge.remove!()} />}

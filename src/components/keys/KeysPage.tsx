@@ -1,3 +1,4 @@
+import { PERSONAL_CLIENT } from "@/lib/personal-client";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ChevronRight, Search } from "lucide-react";
 import { useStore, type ConfigStatus } from "@/state/store";
@@ -25,7 +26,7 @@ const PANELS: Partial<Record<KeyId, () => ReactNode>> = {
 const EXTRAS: Partial<Record<KeyId, () => ReactNode>> = {
   anthropic: () => <AnthropicEveryClaudeBot />,
   openaiCompat: () => <><OpenAiCompatUrl /><BuiltInReplyWait /><OtherOpenAiCompatServers /></>,
-  box: () => <BoatOfferPanel />,
+  box: () => PERSONAL_CLIENT ? null : <BoatOfferPanel />,
   liveKey: () => <LiveProviderSettings />,
 };
 
@@ -149,7 +150,7 @@ export function KeysPage() {
 
   // With Azure chosen, Live calls do not use the OpenAI key that row points at.
   const azureLive = state.config?.live?.provider === "azure";
-  const rows = KEY_CATALOG.filter((entry) => keyMatches(entry, q) && !(azureLive && entry.id === "liveCalls"));
+  const rows = KEY_CATALOG.filter((entry) => (!PERSONAL_CLIENT || entry.id !== "box") && keyMatches(entry, q) && !(azureLive && entry.id === "liveCalls"));
   const sections = KEY_SECTIONS.flatMap((section) => {
     const own = rows.filter((entry) => entry.section === section.id);
     return own.length > 0 ? [{ id: section.id, rows: own }] : [];

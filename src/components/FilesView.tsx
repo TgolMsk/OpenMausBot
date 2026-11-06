@@ -1,3 +1,4 @@
+import { PERSONAL_CLIENT } from "@/lib/personal-client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Folder, FolderOpen, MoreHorizontal } from "lucide-react";
@@ -76,7 +77,7 @@ function Unavailable() {
   const { dispatch } = useStore();
   return <div className="flex flex-col items-start gap-3">
     <p className="text-[14px] text-ink">{t("files.unavailable")}</p>
-    <button type="button" className="ui-button" onClick={() => dispatch(SETTINGS)}>{t("files.openSettings")}</button>
+    {!PERSONAL_CLIENT && <button type="button" className="ui-button" onClick={() => dispatch(SETTINGS)}>{t("files.openSettings")}</button>}
   </div>;
 }
 
@@ -112,7 +113,7 @@ function FilesPage({ bridge }: { bridge: CloudFilesBridge }) {
     {(state.phase === "offline" || state.phase === "asleep") && <p role="status" data-files-phase={state.phase} className="rounded-xl bg-card px-4 py-3 text-[13px] text-ink-secondary">{t(state.phase === "asleep" ? "files.asleep" : "files.offline")}</p>}
     {state.phase === "signed-out" && <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-card px-4 py-3">
       <p className="text-[13px] text-ink">{t("files.signedOut")}</p>
-      <button type="button" className="ui-button" onClick={() => dispatch(SETTINGS)}>{t("files.openSettings")}</button>
+      {!PERSONAL_CLIENT && <button type="button" className="ui-button" onClick={() => dispatch(SETTINGS)}>{t("files.openSettings")}</button>}
     </div>}
     {failed && <p role="alert" className="text-[13px] text-danger">{failed}</p>}
     <section aria-labelledby="files-shared" className="flex flex-col gap-3">

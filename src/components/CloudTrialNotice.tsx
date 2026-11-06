@@ -1,3 +1,4 @@
+import { PERSONAL_CLIENT } from "@/lib/personal-client";
 import { useEffect, useState } from "react";
 import { ArrowUpRight, CalendarClock, CloudOff, CreditCard } from "lucide-react";
 import type { CloudPlanBridge, CloudPlanSnapshot } from "../../electron/cloud-account.mjs";
@@ -13,7 +14,7 @@ export const cloudPlanChanged = () => globalThis.window?.dispatchEvent?.(new Eve
 export function useCloudPlanSnapshot(bridge: CloudPlanBridge | undefined): CloudPlanSnapshot | null {
   const [plan, setPlan] = useState<CloudPlanSnapshot | null>(null);
   useEffect(() => {
-    if (!bridge) return;
+    if (PERSONAL_CLIENT || !bridge) return;
     let active = true;
     const stop = () => { active = false; unsubscribe?.(); clearInterval(timer); window.removeEventListener?.("focus", read); window.removeEventListener?.(PLAN_CHANGED, read); };
     const read = () => { void bridge.state().then(next => { if (active) setPlan(next); }, () => { if (active) setPlan({ status: "none" }); stop(); }); };
@@ -24,7 +25,7 @@ export function useCloudPlanSnapshot(bridge: CloudPlanBridge | undefined): Cloud
     read();
     return stop;
   }, [bridge]);
-  return bridge ? plan : null;
+  return !PERSONAL_CLIENT && bridge ? plan : null;
 }
 
 const ICON: Record<CloudTrialState, typeof CalendarClock> = {

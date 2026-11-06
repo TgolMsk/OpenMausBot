@@ -115,6 +115,7 @@ import { createOrgLibrary } from "./org-library.mjs";
 import { createCompanyBackups } from "./company-backups.mjs";
 import { createCompanyBackupSchedule } from "./company-backup-schedule.mjs";
 import { installServerSessions, reportOwnListeners } from "./server-session.mjs";
+import { PERSONAL_CLIENT, personalRendererArguments, personalServiceUrl } from "./personal-client.mjs";
 
 const { desktopCapabilities, nativeDesktopActions } = capabilitiesModule;
 const nativeActions = nativeDesktopActions(process.platform);
@@ -151,7 +152,7 @@ const cloudEntry = createCloudEntry({
     return delivered;
   },
 });
-cloudEntry.fromLaunch(process.argv);
+if (!PERSONAL_CLIENT) cloudEntry.fromLaunch(process.argv);
 let pendingPackageInstallUrl = pendingOrganizationEntry ? null : packageUrlFromCommandLine(process.argv);
 let pendingChatLink = pendingOrganizationEntry ? null : chatLinkFromCommandLine(process.argv);
 let organizationEntryReady = false;
@@ -242,7 +243,7 @@ function queueChatLink(rawLink) {
 }
 
 app.on("open-url", (event, url) => {
-  if (!queueOrganizationEntry(url) && !cloudEntry.fromUrl(url) && !queuePackageInstall(url) && !queueChatLink(url)) return;
+  if (!queueOrganizationEntry(url) && !(!PERSONAL_CLIENT && cloudEntry.fromUrl(url)) && !queuePackageInstall(url) && !queueChatLink(url)) return;
   event.preventDefault();
 });
 
@@ -251,7 +252,7 @@ app.on("second-instance", (_event, commandLine) => {
     queueOrganizationEntry("openmausbot://organization");
     return;
   }
-  if (cloudEntry.fromArgs(commandLine)) return;
+  if (!PERSONAL_CLIENT && cloudEntry.fromArgs(commandLine)) return;
   const packageUrl = packageUrlFromCommandLine(commandLine);
   if (packageUrl) pendingPackageInstallUrl = packageUrl;
   const chatLink = chatLinkFromCommandLine(commandLine);
@@ -450,7 +451,7 @@ async function secureWorkspaceConfig() {
 }
 
 function composioBrokerUrl() {
-  return managedComposioBrokerUrl(process.env.OMB_COMPOSIO_BROKER_URL, app.isPackaged);
+  return managedComposioBrokerUrl(personalServiceUrl(process.env.OMB_COMPOSIO_BROKER_URL), app.isPackaged && !PERSONAL_CLIENT);
 }
 
 // Finder/Explorer launches have no usable stdio, so the server child's output goes to server.log here.
@@ -559,6 +560,7 @@ async function ensurePhoneSecretIdentity() {
 }
 
 function publicManagedCompanionState() {
+  if (PERSONAL_CLIENT) return { status: "disabled", configured: false, ready: false };
   const access = managedCompanionTunnelAccess(secureCredentials);
   const status = managedCompanionConnector?.getStatus();
   if (status) {
@@ -644,6 +646,7 @@ function reconcileCompanionAdvertisement(
 }
 
 async function startManagedCompanionConnection({ waitForVerification = true } = {}) {
+  if (PERSONAL_CLIENT) return publicManagedCompanionState();
   if (companionAccountCleanupPending(secureCredentials)) {
     return publicManagedCompanionState();
   }
@@ -726,6 +729,7 @@ function installationDisplayName() {
 }
 
 function ensureCompanionAccountService() {
+  if (PERSONAL_CLIENT) throw new Error("Hosted phone accounts are unavailable in the personal client. Connect directly or use Tailscale.");
   if (companionAccountService) return companionAccountService;
   const baseURL = resolveCompanionControlPlaneURL({
     isPackaged: app.isPackaged,
@@ -809,6 +813,7 @@ function syncPhoneSecretKey(proc) {
 
 const cloudEncryption = { available: async () => (await safeStorage.isAsyncEncryptionAvailable()) && (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text"), encrypt: value => safeStorage.encryptStringAsync(value), decrypt: value => safeStorage.decryptStringAsync(value) }; let activeSignIn = null; const cloudAccountStore = () => (activeSignIn ??= createCloudAccountStore({ file: path.join(app.getPath("userData"), cloudTarget(process.env).file), encryption: cloudEncryption }));
 function ensureCloudAccount() {
+  if (PERSONAL_CLIENT) throw new Error("Managed Cloud accounts are unavailable in the personal client. Connect to your own server.");
   if (cloudAccount) return cloudAccount;
   if (!app.isPackaged || desktopRemoteAccess) throw new Error("MausBot Cloud sign-in requires the local desktop app.");
   cloudAccount = createCloudAccountClient({
@@ -846,7 +851,7 @@ async function readCloudOfferBrand() {
   refreshApplicationMenu();
 }
 function cloudOffersAllowed() {
-  return app.isPackaged && !desktopRemoteAccess && brandedBuild === false;
+  return !PERSONAL_CLIENT && app.isPackaged && !desktopRemoteAccess && brandedBuild === false;
 }
 async function cloudOffersReady() {
   if (brandedBuild === null && serverReady) await readCloudOfferBrand();
@@ -1539,7 +1544,7 @@ function refreshApplicationMenu() {
       onSwitch: (id) => void workspaceMenuAction(() => switchEnvironment(id)),
       onAddFromClipboard: () => void addServerFromClipboard(),
       onConnect: () => void workspaceMenuAction(openWorkspaceSettings),
-      onOrganizationSignIn: () => queueOrganizationEntry("openmausbot://organization"),
+      ...(!PERSONAL_CLIENT ? { onOrganizationSignIn: () => queueOrganizationEntry("openmausbot://organization") } : {}),
       onForget: (id) => void workspaceMenuAction(() => forgetEnvironment(id)),
       onOpenSettings: () => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("app:open-settings"); },
       openAtLogin: loginItem.available() ? { checked: loginItem.chosen(), onToggle: on => { loginItem.choose(on); refreshApplicationMenu(); } } : null,
@@ -2016,7 +2021,7 @@ function createWindow({ deferNavigation = false } = {}) {
       contextIsolation: true,
       preload: path.join(__dirname, "preload.cjs"),
       additionalArguments: [...desktopCompanionRendererArguments(rendererOrigin(), desktopRemoteAccess),
-        ...(app.isPackaged && !desktopRemoteAccess ? ["--omb-company-desktop=1"] : []), `--omb-app-version=${app.getVersion()}`],
+        ...personalRendererArguments(), ...(!PERSONAL_CLIENT && app.isPackaged && !desktopRemoteAccess ? ["--omb-company-desktop=1"] : []), `--omb-app-version=${app.getVersion()}`],
     },
   });
   mainWindow = win; hiddenStart = false; chromeRail.attach(win);
@@ -2670,12 +2675,12 @@ const placeInbox = createPlaceInboxWatch({ places: () => [{ id: LOCAL_ID, local:
 const railProfiles = () => (app.isPackaged && !desktopRemoteAccess && homeWindow.cloudOrigin() ? [{ id: DEFAULT_PROFILE, active: homeWindow.profile() === DEFAULT_PROFILE && environmentsState.activeId === LOCAL_ID }] : []); const railList = () => { ownHome?.refresh(); return railPlaces({ saved: environmentsState, waiting: placeInbox.waiting, home: homeWindow.cloudOrigin() ?? ownHome?.origin() ?? null, mine: myCloud(), state: desktopRemoteAccess ? null : cloudAccount?.state(), offers: entry => !desktopRemoteAccess && ownHome?.offers(entry) === true, accounts: accountRing.waiting(), profiles: railProfiles() }); };
 // The rail as the window's own chrome (chrome-rail.mjs): this app's page beside every place's page, the one that lists.
 const chromeRail = createChromeRail({ createView: options => new WebContentsView(options), preload: path.join(__dirname, "preload.cjs"), log: slog, prefs: () => desktopPrefs, changed: () => rail.changed(),
-  args: () => [...desktopCompanionRendererArguments(rendererOrigin(), desktopRemoteAccess), ...(app.isPackaged && !desktopRemoteAccess ? ["--omb-company-desktop=1"] : []), `--omb-app-version=${app.getVersion()}`],
+  args: () => [...desktopCompanionRendererArguments(rendererOrigin(), desktopRemoteAccess), ...personalRendererArguments(), ...(!PERSONAL_CLIENT && app.isPackaged && !desktopRemoteAccess ? ["--omb-company-desktop=1"] : []), `--omb-app-version=${app.getVersion()}`],
   url: () => `${rendererOrigin()}${CHROME_RAIL_PATH}`, wanted: () => !desktopRemoteAccess && serverReady && railList().length > 0 });
 chromeRail.install(ipcMain);
 function railChanged() { chromeRail.refresh(); rail.changed(); }
 const accountPages = [() => (mainWindow && !mainWindow.isDestroyed() && senderIsLocal({ sender: mainWindow.webContents }) ? mainWindow.webContents : null), () => ({ send: channel => chromeRail.send(channel) })];
-const accountRing = createDesktopRing({ allowed: () => app.isPackaged && !desktopRemoteAccess, active: cloudAccountStore, savedStore: () => createCloudAccountStore({ file: path.join(app.getPath("userData"), cloudTarget(process.env).saved), encryption: cloudEncryption }), stash: () => jsonFile(path.join(app.getPath("userData"), cloudTarget(process.env).places)), client: ensureCloudAccount, origin: cloudTarget(process.env).origin, makeClient: ({ store, onState }) => createCloudAccountClient({ store, onState, platform: process.platform, deviceName: os.hostname().slice(0, 100) || nativeT("native.accounts.myComputer"), appVersion: app.getVersion(), origin: cloudTarget(process.env).origin, openBrowser: url => shell.openExternal(url) }), saved: () => environmentsState, persist: persistEnvironments, session: () => session.defaultSession, mine: () => myCloud(), leaveWindow: () => (mainWindow && !mainWindow.isDestroyed() && !senderIsLocal({ sender: mainWindow.webContents }) ? navigateMainWindow(rendererOrigin()) : null), rows: () => railList(), holding: () => oneHome.holding(), letGo: id => { homeWindow.accountLeaving(); homePlaces.remember(null); computerSharing?.leaveAccount(id); }, lendingDone: () => computerSharing?.goodbyesDone(), settled: () => showHome(), forgetLending: env => sharingController().forget(env), tell: () => { accounts.tell(); railChanged(); }, log: slog }); const accounts = installAccounts({ ipcMain, ownPage: event => chromeRail.owns(event) || cloudPageAsking(event) === "local", placePage: event => cloudPageAsking(event) !== null || ownCloudPage(event) !== null || homeWindow.homePage(event) || (Boolean(ownHome?.home()) && activeEnvironment(environmentsState)?.origin === ownHome.home().origin && workspaceSenderAllowed(event, mainWindow?.webContents, environmentsState, rendererOrigin())), account: () => (app.isPackaged && !desktopRemoteAccess ? cloudAccount : null), client: ensureCloudAccount, ring: accountRing, t: nativeT, holdSheet: open => chromeRail.holdOpen(open), tellSheet: () => chromeRail.send("accounts:open-sheet"), tell: () => { for (const page of accountPages) page()?.send("accounts:changed"); } });
+const accountRing = createDesktopRing({ allowed: () => !PERSONAL_CLIENT && app.isPackaged && !desktopRemoteAccess, active: cloudAccountStore, savedStore: () => createCloudAccountStore({ file: path.join(app.getPath("userData"), cloudTarget(process.env).saved), encryption: cloudEncryption }), stash: () => jsonFile(path.join(app.getPath("userData"), cloudTarget(process.env).places)), client: ensureCloudAccount, origin: cloudTarget(process.env).origin, makeClient: ({ store, onState }) => createCloudAccountClient({ store, onState, platform: process.platform, deviceName: os.hostname().slice(0, 100) || nativeT("native.accounts.myComputer"), appVersion: app.getVersion(), origin: cloudTarget(process.env).origin, openBrowser: url => shell.openExternal(url) }), saved: () => environmentsState, persist: persistEnvironments, session: () => session.defaultSession, mine: () => myCloud(), leaveWindow: () => (mainWindow && !mainWindow.isDestroyed() && !senderIsLocal({ sender: mainWindow.webContents }) ? navigateMainWindow(rendererOrigin()) : null), rows: () => railList(), holding: () => oneHome.holding(), letGo: id => { homeWindow.accountLeaving(); homePlaces.remember(null); computerSharing?.leaveAccount(id); }, lendingDone: () => computerSharing?.goodbyesDone(), settled: () => showHome(), forgetLending: env => sharingController().forget(env), tell: () => { accounts.tell(); railChanged(); }, log: slog }); const accounts = installAccounts({ ipcMain, ownPage: event => chromeRail.owns(event) || cloudPageAsking(event) === "local", placePage: event => cloudPageAsking(event) !== null || ownCloudPage(event) !== null || homeWindow.homePage(event) || (Boolean(ownHome?.home()) && activeEnvironment(environmentsState)?.origin === ownHome.home().origin && workspaceSenderAllowed(event, mainWindow?.webContents, environmentsState, rendererOrigin())), account: () => (app.isPackaged && !desktopRemoteAccess ? cloudAccount : null), client: ensureCloudAccount, ring: accountRing, t: nativeT, holdSheet: open => chromeRail.holdOpen(open), tellSheet: () => chromeRail.send("accounts:open-sheet"), tell: () => { for (const page of accountPages) page()?.send("accounts:changed"); } });
 const rail = installCloudRail({ t: nativeT, ipcMain, clipboard, openCloud: openOwnCloud, switchAccount: id => accountRing().switchTo(id), account: () => (app.isPackaged && !desktopRemoteAccess ? cloudAccount : null),
   guard: handler => (event, ...args) => (chromeRail.owns(event) ? handler(event, ...args) : workspaceOnly(handler)(event, ...args)),
   lists: event => chromeRail.owns(event), trusted: event => chromeRail.owns(event) || senderIsLocal(event), beside: () => chromeRail.shown(),
@@ -2959,10 +2964,10 @@ app.whenReady().then(async () => {
   });
   secureCredentials = secureCredentialState.read();
   if (app.isPackaged) await ensurePhoneSecretIdentity();
-  companionE2E = createDesktopCompanionE2E({ isPackaged: app.isPackaged, appVersion: app.getVersion(), readCredentials: () => secureCredentialState?.read() ?? secureCredentials, updateCredentials: updateSecureCredentialDocument, powerMonitor, log: slog });
+  companionE2E = createDesktopCompanionE2E({ isPackaged: !PERSONAL_CLIENT && app.isPackaged, appVersion: app.getVersion(), readCredentials: () => secureCredentialState?.read() ?? secureCredentials, updateCredentials: updateSecureCredentialDocument, powerMonitor, log: slog });
   void companionE2E.start();
   desktopRemoteAccess = desktopCompanionAccess(secureCredentials);
-  const hostedAccount = desktopRemoteAccess ? null : ensureCompanionAccountService();
+  const hostedAccount = PERSONAL_CLIENT || desktopRemoteAccess ? null : ensureCompanionAccountService();
   // Display capture needs a one-shot renderer intent from the same frame/origin, no audio, and a user gesture.
   if (process.platform === "darwin" || process.platform === "linux") {
     session.defaultSession.setDisplayMediaRequestHandler(
@@ -3088,7 +3093,7 @@ app.whenReady().then(async () => {
   if (desktopShutdownStarted) return;
   if (app.isPackaged && !desktopRemoteAccess) void ensureManagedDesktop().start().then(() => companyBackupSchedule.start()).catch(() => {});
   // Fresh local use never makes a Cloud request; start only restores an existing grant.
-  if (app.isPackaged && !desktopRemoteAccess) {
+  if (!PERSONAL_CLIENT && app.isPackaged && !desktopRemoteAccess) {
     cloudAccountRestoring = true;
     cloudAccountStarted = ensureCloudAccount().start().catch(() => {}).then(() => accountRing()?.start()).finally(() => { cloudAccountRestoring = false; });
   }
@@ -3115,7 +3120,7 @@ app.whenReady().then(async () => {
   // Maintainer grants never start while computer sharing is off; Cloud lending waits for a verified sign-in.
   void refreshSharedComputersAllowed().then((allowed) => {
     sharingController().start({ maintainer: allowed });
-    cloudSync.start();
+    if (!PERSONAL_CLIENT) cloudSync.start();
     void cloudAccountStarted.then(() => computerSharing?.cloudChanged());
   });
   let restoredOrganizationEntry = false;

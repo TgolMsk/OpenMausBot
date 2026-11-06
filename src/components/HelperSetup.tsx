@@ -1,3 +1,4 @@
+import { PERSONAL_CLIENT } from "@/lib/personal-client";
 import { useState } from "react";
 import { AppWindow, Bot as BotIcon, Cloud, Download, Mail, Smartphone, Sparkles, type LucideIcon } from "lucide-react";
 
@@ -91,7 +92,7 @@ export function IntroChips({ chips }: { chips: readonly IntroChip[] }) {
   const { dispatch } = useStore();
   const [tapped, setTapped] = useState<ReadonlySet<IntroChip>>(new Set());
   const [connecting, setConnecting] = useState(false);
-  const shown = chips.filter((chip) => !tapped.has(chip)).slice(0, INTRO_CHIPS);
+  const shown = chips.filter((chip) => (!PERSONAL_CLIENT || chip !== "cloud") && !tapped.has(chip)).slice(0, INTRO_CHIPS);
   const tap = (chip: IntroChip) => {
     setTapped((now) => new Set([...now, chip]));
     if (chip === "ai") return setConnecting(true);

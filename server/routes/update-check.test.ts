@@ -1,15 +1,16 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { json, readBody } from "../harness/http.ts";
 import { requiredScope } from "../request-auth.ts";
 import type { UpdateCheck } from "../update-check.ts";
 import { dispatchRoutes } from "./table.ts";
-import { createUpdateCheckRoutes } from "./update-check.ts";
+import { createUpdateCheckRoutes, serverUpdateChecker } from "./update-check.ts";
 
 const servers: Server[] = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(servers.splice(0).map((server) => new Promise((done) => server.close(done))));
 });
 
@@ -29,6 +30,15 @@ async function serve(check: () => Promise<UpdateCheck>): Promise<string> {
 }
 
 describe("update check route", () => {
+  it("never contacts the official updater or offers a stock upgrade command in the personal client", async () => {
+    const remote = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("unexpected network request"));
+    const result = await serverUpdateChecker({ desktopManaged: false, managed: false })();
+    expect(result).toMatchObject({ current: expect.any(String), available: false });
+    expect(result).not.toHaveProperty("command");
+    expect(result).not.toHaveProperty("releaseUrl");
+    expect(remote).not.toHaveBeenCalled();
+  });
+
   it("is open to chat-only sessions: it only reads a version", () => {
     expect(requiredScope("GET", "/api/updates/check")).toBe("client");
   });

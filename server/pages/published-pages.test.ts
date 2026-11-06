@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PublishedPageCard } from "../../shared/published-page.ts";
 import { FAKE_DESKTOP_TOKEN, FAKE_HOME, FAKE_TOKEN_URL, fakePagesService } from "../testing/fake-pages.ts";
 import { applyIncludedPagesMessage, pagesHomeSignature } from "./access.ts";
@@ -10,6 +10,8 @@ import { PublishedPagesStore } from "./store.ts";
 import { createPublishedPages } from "./service.ts";
 import { createPagesInternalRoutes, createPublishedPageRoutes, type AppPages } from "../routes/published-pages.ts";
 import { PASS } from "../routes/table.ts";
+
+vi.mock("../../shared/personal-client.ts", () => ({ PERSONAL_CLIENT: false }));
 
 const SITE = { "index.html": "<!doctype html><h1>Bake sale</h1>", "style.css": "h1{color:red}" };
 let dir: string;

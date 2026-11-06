@@ -1,3 +1,4 @@
+import { PERSONAL_CLIENT } from "@/lib/personal-client";
 import { t } from "@/lib/i18n";
 import type { Bot, InstanceInfo } from "@/state/store";
 
@@ -156,7 +157,7 @@ export function persistedComputerSelectionMatches({
   persistedBot: Pick<Bot, "computer" | "cloudBackend">;
 }): boolean {
   return persistedBot.computer === computer
-    && (persistedBot.cloudBackend ?? "box") === cloudBackend;
+    && (persistedBot.cloudBackend ?? (PERSONAL_CLIENT ? "vps" : "box")) === cloudBackend;
 }
 
 export function autoSelectsLocalComputer({

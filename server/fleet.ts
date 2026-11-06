@@ -1,6 +1,7 @@
 // Many client workspaces on one Linux server, each its own OS user and `openmausbot@<slug>` service. This module only plans:
 // it renders files and fixed argument lists as steps, and never builds a shell command string.
 import { posix } from "node:path";
+import { PERSONAL_CLIENT } from "../shared/personal-client.ts";
 
 const { join } = posix;
 
@@ -474,6 +475,7 @@ export function deletePlan(input: { registry: FleetRegistry; slug: string; keepD
 }
 
 export function upgradePlan(input: { registry: FleetRegistry }): FleetStep[] {
+  if (PERSONAL_CLIENT) throw new Error("Official OpenMausBot upgrades are disabled in this personal client. Deploy updates from your personal-client branch instead.");
   const running = Object.values(input.registry.workspaces).filter((workspace) => workspace.status === "running").sort((a, b) => a.slug.localeCompare(b.slug));
   return [
     { kind: "run", argv: ["npm", "install", "-g", "openmausbot@latest"], why: "install the release every workspace runs from" },

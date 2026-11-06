@@ -1,11 +1,12 @@
 import { join } from "node:path";
+import { PERSONAL_CLIENT } from "../../shared/personal-client.ts";
 import type { PublishedPageCard } from "../../shared/published-page.ts";
 import type { ChatApps } from "../chat-apps.ts";
 import { createPagesInternalRoutes, createPublishedPageRoutes } from "../routes/published-pages.ts";
 import type { Store } from "../store.ts";
-import { applyIncludedPagesMessage, pagesAccess, pagesNotOffered } from "./access.ts";
+import { applyIncludedPagesMessage, pagesAccess, pagesNotOffered, PERSONAL_PAGES_UNAVAILABLE } from "./access.ts";
 import { createPagesClient } from "./client.ts";
-import { createPagePublisher } from "./publisher.ts";
+import { createPagePublisher, type PageOutcome, type PagePublisher } from "./publisher.ts";
 import { PublishedPagesStore } from "./store.ts";
 
 /** Pages bots publish to a link: the bot tools' internal routes, the card's Unpublish, the desktop's sign-in message, and
@@ -34,7 +35,10 @@ export function createPublishedPages(options: {
     if (pageRow(threadId, messageId)) apps!.store.patchMessage(threadId, messageId, { publishedPage: card });
     else options.patch(threadId, messageId, text, card);
   };
-  const publisher = createPagePublisher({ client, store, patch });
+  const unavailable = async (): Promise<PageOutcome> => ({ status: 503, text: PERSONAL_PAGES_UNAVAILABLE });
+  const publisher: PagePublisher = PERSONAL_CLIENT
+    ? { publish: unavailable, publishFiles: unavailable, unpublish: unavailable }
+    : createPagePublisher({ client, store, patch });
   const appPages = apps ? {
     botOf: (threadId: string) => (apps.store.groupByThread(threadId) ? null : apps.store.botByThread(threadId) ?? null),
     page: (threadId: string, messageId: string, rev?: number) => apps.chat.publishablePage(threadId, messageId, rev),

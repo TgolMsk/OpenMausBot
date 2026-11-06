@@ -1,3 +1,4 @@
+import { PERSONAL_CLIENT } from "@/lib/personal-client";
 import type { CloudBackend } from "../../shared/wire";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/state/store";
@@ -19,13 +20,13 @@ export function CloudBackendPicker({
       <div className="text-[12px] font-medium text-ink">{compact ? t("botAccess.cloud.provider") : t("botAccess.cloud.backend")}</div>
       <div className="mt-0.5 text-[12px] text-ink-secondary">
         {compact
-          ? value === "vps" ? t("botAccess.cloud.vpsDescription") : t("botAccess.cloud.hostedDescription")
-          : value === "vps"
+          ? (PERSONAL_CLIENT || value === "vps") ? t("botAccess.cloud.vpsDescription") : t("botAccess.cloud.hostedDescription")
+          : (PERSONAL_CLIENT || value === "vps")
           ? t("botAccess.cloud.vpsAutoDescription")
           : t("botAccess.cloud.hostedBackendDescription")}
       </div>
       <div className="mt-2 flex overflow-hidden rounded-lg border border-hairline/40">
-        {(["box", "vps"] as const).map((backend, i) => (
+        {(PERSONAL_CLIENT ? ["vps"] as const : ["box", "vps"] as const).map((backend, i) => (
           <button
             key={backend}
             onClick={() => onChange(backend)}

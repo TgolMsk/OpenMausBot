@@ -8,6 +8,7 @@ import { SECTIONS, SIMPLE_FOLDED, SIMPLE_HIDDEN_SECTIONS, SIMPLE_PAGES, Settings
 import { SIMPLE_ADVANCED_ONLY, SimpleLooksPage } from "./SettingsSimplePages";
 
 const fixture = vi.hoisted(() => ({
+  personalClient: false,
   section: "general" as AppSettingsSection,
   advancedMode: false,
   config: { features: { browser: false }, browserEngine: { kind: "bundled", installable: true }, composio: { mode: "self" } } as Record<string, unknown>,
@@ -20,6 +21,8 @@ const fixture = vi.hoisted(() => ({
   rail: null as { available: boolean; hidden: boolean } | null,
   railHidden: [] as boolean[],
 }));
+
+vi.mock("@/lib/personal-client", () => ({ get PERSONAL_CLIENT() { return fixture.personalClient; } }));
 
 vi.mock("./DesktopCapabilities", () => ({ useDesktopCapabilities: () => ({ capabilities: {} }) }));
 vi.mock("@/state/store", async (importOriginal) => ({
@@ -83,6 +86,7 @@ const desktop = { ogb: { environments: {}, organization: {}, cloudAccount: {} } 
 
 beforeEach(() => {
   vi.clearAllMocks();
+  fixture.personalClient = false;
   fixture.section = "general";
   fixture.advancedMode = false;
   fixture.config = { features: { browser: false }, browserEngine: { kind: "bundled", installable: true }, composio: { mode: "self" } };
@@ -412,5 +416,29 @@ describe("the built-in browser switch", () => {
     const experimental = SECTIONS.find((entry) => entry.id === "experimental")!;
     expect(computer.keywords).toContain("browser");
     expect(experimental.keywords).not.toContain("browser");
+  });
+});
+
+
+describe("personal client settings", () => {
+  beforeEach(() => { fixture.personalClient = true; });
+
+  it.each([false, true])("omits commercial account navigation even if an old bridge is present (advanced: %s)", (advanced) => {
+    fixture.advancedMode = advanced;
+    const html = render();
+    expect(html).not.toContain('data-settings-section="cloudAccount"');
+    expect(html).not.toContain('data-settings-block="cloudAccount"');
+    expect(html).not.toContain("MARKER:cloudAccount;");
+    expect(html).not.toContain("MARKER:updatesConsent;");
+    expect(html).not.toContain("Send usage analytics");
+    expect(html).toContain("Language");
+  });
+
+  it("does not render a removed Cloud account page through a stale settings link", () => {
+    fixture.section = "cloudAccount";
+    fixture.advancedMode = true;
+    const html = render();
+    expect(html).not.toContain("MARKER:cloudAccount;");
+    expect(html).not.toContain('data-settings-section="cloudAccount"');
   });
 });

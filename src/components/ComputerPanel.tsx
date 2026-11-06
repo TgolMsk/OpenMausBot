@@ -1,3 +1,4 @@
+import { PERSONAL_CLIENT } from "@/lib/personal-client";
 import { boatCapableEngine, cloudEngineOf } from "@/lib/remote-desktop";
 import { canWorkOnCloud } from "../../shared/cloud-computer";
 import { viewerTargetId } from "../../shared/desktop-viewer";
@@ -127,13 +128,13 @@ export function ComputerPanel({
   const livePlace = effectivePlace(profileBot, liveTask);
   const livePin = personPin(liveTask);
   const threadBot = currentTaskBot(profileBot);
-  const connectionKey = `${profileBot.id}:${profileBot.threadId}:${livePlace}:${profileBot.cloudBackend ?? "box"}:${threadBot.modelSelection.instanceId}`;
+  const connectionKey = `${profileBot.id}:${profileBot.threadId}:${livePlace}:${profileBot.cloudBackend ?? (PERSONAL_CLIENT ? "vps" : "box")}:${threadBot.modelSelection.instanceId}`;
   const [autoSurface, setAutoSurface] = useState<{ key: string; surface: Bot["computer"] } | null>(null);
   const autoSurfaceCurrent = autoSurface?.key === connectionKey;
   const surfaceReady = livePlace !== "auto" || autoSurfaceCurrent;
   const bot = { ...threadBot, computer: livePlace === "auto"
     ? autoSurfaceCurrent ? autoSurface.surface : undefined : livePlace };
-  const viewerConnectionKey = `${bot.id}:${bot.threadId}:${bot.computer}:${bot.cloudBackend ?? "box"}`;
+  const viewerConnectionKey = `${bot.id}:${bot.threadId}:${bot.computer}:${bot.cloudBackend ?? (PERSONAL_CLIENT ? "vps" : "box")}`;
   const viewerConnection = useRef(viewerConnectionKey);
   viewerConnection.current = viewerConnectionKey;
   const desktopJoin = useRef<AbortController | null>(null);
@@ -168,7 +169,7 @@ export function ComputerPanel({
   const [teamComputer, setTeamComputer] = useState<{
     id: string; name: string; botId: string; section: string;
   } | null>(null);
-  const cloudBackend = bot.cloudBackend ?? "box";
+  const cloudBackend = bot.cloudBackend ?? (PERSONAL_CLIENT ? "vps" : "box");
   const computerSelectionPersisted = Boolean(
     persistedComputerSelection
       && persistedComputerSelection.botId === bot.id
@@ -299,7 +300,7 @@ export function ComputerPanel({
 
   const previousPanelTarget = useRef<string | null>(null);
   // Excludes the model and Auto's resolved surface: neither may move the tab.
-  const panelTargetKey = `${profileBot.id}:${profileBot.threadId}:${livePlace}:${profileBot.cloudBackend ?? "box"}`;
+  const panelTargetKey = `${profileBot.id}:${profileBot.threadId}:${livePlace}:${profileBot.cloudBackend ?? (PERSONAL_CLIENT ? "vps" : "box")}`;
   useEffect(() => {
     const previous = previousPanelTarget.current;
     if (previous === panelTargetKey && (explicitPanelView.current || !(bot.computer === "browser" && browserEnabled))) return;
@@ -1113,7 +1114,7 @@ export function ComputerPanel({
     ["off", "vm.dest.off", "computer.dest.offDesc", Power],
   ] as const).filter(([mode]) => mode === null || mode === "off" || (placeOffered(mode, state.config) && !(mode === "local" && localHidden))).map(([mode, labelKey, descriptionKey, Icon]) => {
     const selected = mode === null ? !profileBot.computer || (profileBot.computer === "local" && localHidden) : profileBot.computer === mode;
-    const managedKind = mode === "local" ? "thisComputer" : mode === "vm" ? "localVm" : mode === "cloud" ? (profileBot.cloudBackend === "vps" ? "vps" : "box") : null;
+    const managedKind = mode === "local" ? "thisComputer" : mode === "vm" ? "localVm" : mode === "cloud" ? (PERSONAL_CLIENT || profileBot.cloudBackend === "vps" ? "vps" : "box") : null;
     const managedBy = managedPolicy && managedKind && !managedPolicy.computers[managedKind] ? t("policy.managedBy", { organization: managedPolicy.organizationName }) : undefined;
     const view = mode === null ? autoView : mode === "cloud" ? cloudView : viewOf(mode);
     const disabled = Boolean(managedBy) || placeBlocked(view);
@@ -1516,7 +1517,7 @@ export function ComputerPanel({
             {errorText}
           </div>
         )}
-        {(boatKeyShown || (phase === "unconfigured" && cloudView.action?.id === "add-boat-key")) && (
+        {!PERSONAL_CLIENT && (boatKeyShown || (phase === "unconfigured" && cloudView.action?.id === "add-boat-key")) && (
           <div data-boat-key className="mt-3 rounded-xl bg-card py-1.5">
             <KeyRow id="box" via="computer_panel"
               onSaved={(configured) => { setBoatKeyShown(true); if (configured) setRetry((n) => n + 1); }}

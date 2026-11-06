@@ -16,6 +16,7 @@ import { openBlankTerminal } from "./terminal-launch.mjs";
 import { UPDATE_TEXT } from "./update-errors.mjs";
 import { createUpdaterCoordinator } from "./updater-coordinator.mjs";
 import { createQuietInstall, installFailed, launchAfter, LOOK_EVERY_MS, updateSeen } from "./update-when-quiet.mjs";
+import { PERSONAL_CLIENT } from "./personal-client.mjs";
 
 export { quietSignals } from "./update-when-quiet-main.mjs";
 
@@ -46,7 +47,7 @@ function quietRecord() {
 }
 
 function launched() {
-  launch ??= app.isPackaged && QUIET_PLATFORMS.has(process.platform)
+  launch ??= !PERSONAL_CLIENT && app.isPackaged && QUIET_PLATFORMS.has(process.platform)
     ? launchAfter(quietRecord(), { version: app.getVersion() })
     : { hidden: false, updated: null };
   return launch;
@@ -148,7 +149,7 @@ export function attachUpdaterWindow(mainWindow) {
 
 /** `signals` (quietSignals): what tells a quiet moment; without them a downloaded update installs only on Restart or quit. */
 export function startUpdater(signals = null) {
-  if (!app.isPackaged) {
+  if (PERSONAL_CLIENT || !app.isPackaged) {
     updaterCoordinator = null;
     setState({ status: "idle" });
     return;

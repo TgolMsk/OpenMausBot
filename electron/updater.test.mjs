@@ -16,7 +16,9 @@ const CLOUD = "https://home-7f3k2.fly.dev";
 const OTHER = "https://bots.example.test";
 const OWN = "https://omb-c-a.fly.dev";
 
-const fixture = vi.hoisted(() => ({ autoUpdater: null, handlers: new Map() }));
+const fixture = vi.hoisted(() => ({ autoUpdater: null, handlers: new Map(), personalClient: false }));
+
+vi.mock("./personal-client.mjs", () => ({ get PERSONAL_CLIENT() { return fixture.personalClient; } }));
 
 vi.mock("electron", () => ({
   app: { isPackaged: true, getPath: () => "/unused-updater-test-log", getVersion: () => "1.0.0", hide: vi.fn() },
@@ -45,6 +47,7 @@ function mainRule() {
   const listeners = new Map();
   const signIn = { options: null, state: { status: "signed-out", message: "restoring" } };
   const context = vm.createContext({
+    PERSONAL_CLIENT: false,
     ipcMain: { handle: () => {}, on: (channel, listener) => listeners.set(channel, listener) },
     senderIsLocal: localOriginModule.isLocalSender, workspaceSenderAllowed: environments.workspaceSenderAllowed, cloudPageSenderAllowed, myCloudOrigin, otherOwnClouds,
     activeEnvironment: environments.activeEnvironment, rendererOrigin: () => LOCAL, desktopRemoteAccess: false,
@@ -120,8 +123,22 @@ const settle = async () => {
 };
 
 beforeEach(() => {
+  fixture.personalClient = false;
   localOriginModule.setLocalOrigin(LOCAL);
   vi.useFakeTimers();
+});
+
+it("never checks, downloads or installs an official update in the packaged personal client", async () => {
+  fixture.personalClient = true;
+  const { updater, autoUpdater, handlers } = await load(() => true);
+  updater.startUpdater();
+  await handlers.get("update:check")({});
+  await handlers.get("update:install")({});
+  await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
+  expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled();
+  expect(autoUpdater.downloadUpdate).not.toHaveBeenCalled();
+  expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+  expect(handlers.get("update:get-state")({})).toEqual({ status: "idle" });
 });
 afterEach(() => {
   vi.clearAllTimers();

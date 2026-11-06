@@ -1,3 +1,4 @@
+import { PERSONAL_CLIENT } from "@/lib/personal-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, Loader2, Menu } from "lucide-react";
 import { CLOUD_LINK_SETTINGS, openBot, StoreProvider, useStore } from "@/state/store";
@@ -312,12 +313,12 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
     <LiveConnectionStrip connected={state.connected} hydrated={state.hydrated === true} />
     <CloudSendStrip cloudHome={state.config?.cloudHome === true} />
     <HomeLine />
-    <AppNotices quiet={paletteOpen || drawerOpen || Boolean(localVmWorkspaceBotId)} viewer={viewer} />
+    {!PERSONAL_CLIENT && <AppNotices quiet={paletteOpen || drawerOpen || Boolean(localVmWorkspaceBotId)} viewer={viewer} />}
   </>;
   return (
     <div className={cn("flex h-full flex-col", framed && "bg-frame")}>
       <WindowFrameBar notifications={notificationTray} />
-      <BotLimitPopup />
+      {!PERSONAL_CLIENT && <BotLimitPopup />}
       {!framed && strips}
       <div className="relative flex min-h-0 flex-1">
       {!calendarFocus && <button
@@ -423,8 +424,8 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
       </div>
       </div>
       {state.appSettingsOpen && <SettingsModal />}
-      {cloudAddOpened.current && <CloudAddDialog />}
-      <CloudHowTo />
+      {!PERSONAL_CLIENT && cloudAddOpened.current && <CloudAddDialog />}
+      {!PERSONAL_CLIENT && <CloudHowTo />}
       <CloudSetup viewer={viewer} welcomeShown={welcomeOnScreen} />
       <WelcomeKeeper viewer={viewer} />
       {state.pluginsOpen && <PluginsPanel />}

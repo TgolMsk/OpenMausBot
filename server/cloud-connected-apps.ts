@@ -13,6 +13,7 @@ import {
 } from "../electron/managed-composio.mjs";
 import { writeFileAtomic } from "./atomic.ts";
 import { managedComposioBrokerUrl } from "../electron/managed-composio.mjs";
+import { personalBrokerAllowed } from "./composio-broker-access.ts";
 
 /** In the data folder; excluded from backups (workspace-backup-policy.ts), so a restore keeps the Cloud's own. */
 export const CLOUD_CONNECTED_APPS_FILE = "connected-apps-installation.json";
@@ -188,9 +189,11 @@ export function startCloudConnectedApps(options: CloudConnectedAppsOptions): Clo
 }
 
 let cloudHome: CloudConnectedApps | null = null;
-/** The connected-apps service a Cloud home and a Team Cloud's members register with: the built server uses OpenMausBot's;
- * from source (development, tests) only an explicit OMB_COMPOSIO_BROKER_URL. "" for none. */
-export const cloudConnectedAppsBrokerUrl = (): string => managedComposioBrokerUrl(process.env.OMB_COMPOSIO_BROKER_URL, !import.meta.url.endsWith(".ts"));
+/** The explicitly configured connected-apps service; the upstream service is unavailable to personal clients. "" for none. */
+export const cloudConnectedAppsBrokerUrl = (): string => {
+  const url = managedComposioBrokerUrl(process.env.OMB_COMPOSIO_BROKER_URL, false);
+  return url && personalBrokerAllowed(url) ? url : "";
+};
 
 /** A Cloud home's plan includes the connected-apps service, so it registers itself. */
 export function startCloudHomeConnectedApps(input: { cloudHome: boolean; dataDir: string; apply: CloudConnectedAppsOptions["apply"]; cloudGrant?: string }): void {

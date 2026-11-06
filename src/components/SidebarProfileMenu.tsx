@@ -1,3 +1,4 @@
+import { PERSONAL_CLIENT } from "@/lib/personal-client";
 import { useEffect, useRef, useState } from "react";
 import {
   Archive,
@@ -278,7 +279,7 @@ function useConnectPhoneEntry(cloudHome: boolean): ConnectPhoneEntry | null {
 }
 
 export function useCloudPhoneDestination(enabled: boolean): { cloud: CloudPhoneDestination; bridge?: CloudAccountBridge } {
-  const bridge = enabled && !window.ogb?.remoteClient?.active ? window.ogb?.cloudAccount : undefined;
+  const bridge = !PERSONAL_CLIENT && enabled && !window.ogb?.remoteClient?.active ? window.ogb?.cloudAccount : undefined;
   const [account, setAccount] = useState<CloudAccountState | null>(null);
   useEffect(() => {
     if (!bridge) return;
@@ -584,7 +585,7 @@ export function SidebarProfileMenu({ iconOnly = false, rail = false, circle = fa
   const remote = window.ogb?.remoteClient?.active === true;
   const besideRail = railShown(usePlaces());
   const filesReady = useCloudFilesReady();
-  const cloudAccount = !remote && Boolean(window.ogb?.cloudAccount || (window.ogb?.cloudPlan && state.config?.cloudHome === true));
+  const cloudAccount = !PERSONAL_CLIENT && !remote && Boolean(window.ogb?.cloudAccount || (window.ogb?.cloudPlan && state.config?.cloudHome === true));
   const openCloudAccount = () => dispatch({ type: "toggleAppSettings", open: true, section: "cloudAccount" });
   const move = useAccountMove(state.config?.cloudHome === true, { onOpen: openCloudAccount, onPairPhone: () => dispatch(phonePairingSettingsAction()) });
   const accounts = useAccounts();
@@ -604,7 +605,7 @@ export function SidebarProfileMenu({ iconOnly = false, rail = false, circle = fa
     updateTop: simple ? simpleUpdateTop(update) : null,
     move: move.items,
     account: cloudAccount ? cloudRowLabel(accounts.view) : null,
-    accounts: accountMenuItems(accounts),
+    accounts: PERSONAL_CLIENT ? [] : accountMenuItems(accounts),
     ...(account ? { simple: {
       tools: toolMenuItems({
         activeView: state.activeView,

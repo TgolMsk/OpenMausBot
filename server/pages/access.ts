@@ -4,8 +4,10 @@
 //   a desktop's main process fetches its sign-in's own pages token and hands it over on the private parent port.
 // Neither is ever written to config, sent to a client, or given to an engine. No Cloudflare credential is held here.
 import { createHash, createHmac, randomBytes } from "node:crypto";
+import { PERSONAL_CLIENT } from "../../shared/personal-client.ts";
 
 export const PAGES_TOKEN_PATH = "/api/cloud/pages/token";
+export const PERSONAL_PAGES_UNAVAILABLE = "MausBot Cloud publishing is disabled in this personal client. Use your own hosting service to share pages.";
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
 export type PagesAccess =
@@ -49,6 +51,11 @@ function adminUrl(value: unknown): string | null {
  * was one (then applied), false for any other message; a malformed one throws and changes nothing. */
 export function applyIncludedPagesMessage(message: unknown): boolean {
   if (!message || typeof message !== "object" || (message as { type?: unknown }).type !== "openmausbot:included-pages") return false;
+  if (PERSONAL_CLIENT) {
+    desktopPages = null;
+    desktopPagesNotOffered = true;
+    return true;
+  }
   const access = (message as { access?: unknown }).access;
   if (access === null) {
     desktopPages = null;
@@ -70,6 +77,7 @@ export function pagesNotOffered(home: unknown): boolean {
 
 /** A Cloud home's own credential, else a signed-in desktop's; null when this server is signed in to no MausBot account. */
 export function pagesAccess(home: { adminOrigin: string; machineId: string; bootstrapSecret: string } | null): PagesAccess | null {
+  if (PERSONAL_CLIENT) return null;
   if (home) return { kind: "home", url: `${home.adminOrigin}${PAGES_TOKEN_PATH}`, machineId: home.machineId, secret: home.bootstrapSecret };
   return desktopPages ? { kind: "desktop", ...desktopPages } : null;
 }

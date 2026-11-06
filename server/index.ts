@@ -288,6 +288,7 @@ import { type CloudOwnership } from "./cloud-owner.ts"; import { memberLoginRefu
 import { createCloudMoveRoutes } from "./cloud-move-http.ts";
 import { RESTART_EXIT_CODE } from "./restart.ts";
 import { applyIncludedXMessage, holdIncludedServices, researchCredential, trialCreditCredential, xCredential, xResearchStatus } from "./included-services.ts"; import { createResearchAvailability } from "./research.ts";
+import { PERSONAL_CLIENT } from "../shared/personal-client.ts";
 import { CloudCreditProvider } from "./cloud-credit-provider.ts";
 import { createCreditMoves } from "./cloud-credit-moves.ts"; import { createRoutineHoldsHost } from "./host/routine-holds-host.ts";
 import { TRIAL_CREDIT_OWN_AI, TRIAL_KEY_HELD } from "./trial-credit.ts"; import { createHeldKeys } from "./cloud-held-keys.ts";
@@ -727,7 +728,7 @@ if (CLOUD_HOME) {
   console.log(`cloud home ${CLOUD_HOME.machineId}: bots run on the engines the person signs in to here`);
   for (const warning of CLOUD_HOME.warnings) console.warn(`cloud home: ${warning}`);
 }
-holdIncludedServices(CLOUD_ENV);
+holdIncludedServices(CLOUD_ENV, !PERSONAL_CLIENT);
 for (const key of CLOUD_HOME_SECRET_KEYS) delete process.env[key];
 await startBotBoxAtBoot({ dataDir: DATA_DIR, port: PORT }); // The bot box (server/bot-box): on a Cloud home every bot turn runs in it, decided before any engine starts.
 if (CLOUD_HOME && Object.keys(CLOUD_SECRETS).length === 0) {
@@ -1502,8 +1503,11 @@ utilityParentPort?.on("message", (event) => {
     if (handleDesktopTrustedApprovalMessage(message)) return;
     if (browserCleanup.receive(message)) return;
     if (phoneSecrets.receive(message) || botLogins.receiveHandoff(message, postDesktopPrivateMessage, (what) => cloudConnections.handoff(what))) return;
-    if (applyIncludedPagesMessage(message)) return; if (applyIncludedXMessage(message)) return void broadcast({ kind: "config", ...configStatus() });
-    composio.applyManagedBrokerMessage(message);
+    if (!PERSONAL_CLIENT) {
+      if (applyIncludedPagesMessage(message)) return;
+      if (applyIncludedXMessage(message)) return void broadcast({ kind: "config", ...configStatus() });
+      composio.applyManagedBrokerMessage(message);
+    }
   } catch (error) {
     console.error(`[desktop-sync] rejected private parent message: ${error instanceof Error ? error.message : String(error)}`);
   }
@@ -1521,6 +1525,7 @@ const managedPolicy = new ManagedDesktopPolicy({ onChange: () => {
 } });
 onKeyRejectionChange(() => { registry.forgetSnapshots(); broadcast({ kind: "config", ...configStatus() }); });
 function computerPlaceRefusal(kind: ComputerKind): { message: string; code: "cloud_home" | "managed_policy" } | undefined {
+  if (PERSONAL_CLIENT && kind === "box") return { message: "Boat cloud computers are disabled in this personal client. Use your own VPS or a Local VM.", code: "managed_policy" };
   const cloudHome = CLOUD_HOME ? cloudHomePlaceRefusal(kind === "thisComputer" ? "local" : kind === "localVm" ? "vm" : "cloud") : undefined;
   if (cloudHome) return { message: cloudHome, code: "cloud_home" };
   const managed = managedPolicy.computerRefusal(kind);
@@ -5684,6 +5689,7 @@ const cloudComputerPower = createCloudComputerPower({
 });
 
 function inheritedTeamComputer(bot: Pick<BotRecord, "section" | "computer" | "cloudBackend">): TeamComputerRecord | undefined {
+  if (PERSONAL_CLIENT) return undefined;
   return teamComputers.forBot(bot);
 }
 
@@ -6008,20 +6014,20 @@ function providerOperationConflict(provider: RemoteComputerProvider): string | n
 
 /** `chosen`: the place the person set, so the browser's tools are handed the same way on every turn. */
 function turnSurfacePlan(bot: BotRecord, runOn?: RoutineRunOn, threadId?: string, chosen = false) {
-  const instance = registry.get(bot.modelSelection.instanceId), forcedBoat = runOn === "cloud" || Boolean(inheritedTeamComputer(bot));
-  const task = forcedBoat || !threadId ? undefined : store.taskByThread(bot.id, threadId);
+  const instance = registry.get(bot.modelSelection.instanceId), forcedCloud = runOn === "cloud" || Boolean(inheritedTeamComputer(bot));
+  const task = forcedCloud || !threadId ? undefined : store.taskByThread(bot.id, threadId);
   return resolveSurface({
-    destination: threadId && (proactive.fence.confines(threadId) || botApiThread(threadId)) ? "off" : forcedBoat ? "cloud" : bot.computer,
+    destination: threadId && (proactive.fence.confines(threadId) || botApiThread(threadId)) ? "off" : forcedCloud ? "cloud" : bot.computer,
     pinnedSurface: chosen ? chosenPin(task) : task?.surface, botOpened: Boolean(task?.openedBy),
     browserOn: builtInBrowserEnabled(cfg) && bot.browser !== false && instance?.adapter.capabilities.browserMcp === true,
   });
 }
 
 function turnProvider(bot: BotRecord, runOn?: RoutineRunOn, threadId?: string): RemoteComputerProvider | null {
-  if (runOn === "cloud" || inheritedTeamComputer(bot)) return "box";
+  if (runOn === "cloud" || inheritedTeamComputer(bot)) return PERSONAL_CLIENT ? "vps" : "box";
   const wants = turnSurfacePlan(bot, runOn, threadId).computer;
   if (wants !== undefined && wants !== "cloud") return null;
-  return bot.cloudBackend === "vps" ? "vps" : wants === "cloud" ? "box" : null;
+  return PERSONAL_CLIENT || bot.cloudBackend === "vps" ? "vps" : wants === "cloud" ? "box" : null;
 }
 
 /** A query never grants lifecycle authority. */
@@ -7972,7 +7978,7 @@ async function beginTurn(
       const dwebUrl = process.env.DWEB_URL?.trim();
       if (dwebUrl) integrations.dweb = { url: dwebUrl };
       let teamComputer = computerSkipped || proactive.fence.confines(threadId) || botApiThread(threadId) ? undefined : inheritedTeamComputer(bot);
-      const cloudBackend = teamComputer || opts?.runOn === "cloud" || bot.cloudBackend !== "vps" ? "box" : "vps";
+      const cloudBackend = PERSONAL_CLIENT ? "vps" : teamComputer || opts?.runOn === "cloud" || bot.cloudBackend !== "vps" ? "box" : "vps";
       const mountsComputerMcp = instance.adapter.capabilities.computerMcp === true;
       const mountsLocalComputer = instance.adapter.capabilities.localComputerMcp === true;
       const dispatchTask = store.taskByThread(bot.id, threadId);
@@ -8991,7 +8997,8 @@ async function cloudRoutineReadiness(botId: string, threadId?: string): Promise<
   const selection = threadId ? turnSelection(botId, threadId) : projected?.modelSelection;
   const bot = projected && selection ? { ...projected, modelSelection: selection } : projected;
   if (!bot || bot.hidden) return { ready: false, reason: "The routine's target bot no longer exists." };
-  if (!boat.boatConfigured(cfg)) {
+  if (PERSONAL_CLIENT && !vpsSshAliasForBot(cfg, bot)) return { ready: false, reason: "Running on a cloud computer needs your own VPS. Configure a VPS SSH alias in Settings → Computers first." };
+  if (!PERSONAL_CLIENT && !boat.boatConfigured(cfg)) {
     return {
       ready: false,
       reason: `${boatNotConfigured(bot, "routine").message} For the bot's configured computer, including a self-hosted VPS, set run_on="maus" instead.`,
@@ -9004,6 +9011,12 @@ async function cloudRoutineReadiness(botId: string, threadId?: string): Promise<
   try {
     if ((await instance.snapshot()).state !== "available") {
       return { ready: false, reason: "The target bot's model is not ready to use the cloud computer." };
+    }
+    if (PERSONAL_CLIENT) {
+      const status = await vps.vpsComputerStatus(vpsConfigForBot(cfg, bot), bot.id);
+      const canPrepare = status.configured && status.daemonUp && (status.container === "missing" || (status.managed &&
+        status.image && status.imageMatches && status.network === "private" && status.mounts === "none" && status.security === "hardened"));
+      return status.ready || canPrepare ? { ready: true } : { ready: false, reason: status.problem ?? "The target bot's VPS could not be reached. Check its VPS connection in Settings → Computers." };
     }
     const teamComputer = inheritedTeamComputer(bot);
     const ownerId = teamComputer ? teamComputerOwner(teamComputer.id) : bot.id;

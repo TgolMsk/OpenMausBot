@@ -1,5 +1,5 @@
-// The agents catalog's page tools and the internal route behind each. Shown to every bot: a server signed in to no
-// MausBot account answers with the sentence asking the person to sign in.
+import { PERSONAL_CLIENT } from "../../shared/personal-client.ts";
+import { PERSONAL_PAGES_UNAVAILABLE } from "../pages/access.ts";
 import type { ToolCallContext, ToolCallResult } from "./agents-call.ts";
 import type { Json } from "./agents-client.ts";
 
@@ -7,13 +7,14 @@ const PAGE_TOOL_ROUTES: Readonly<Record<string, string>> = { publish_page: "page
 export const PAGE_TOOL_NAMES: ReadonlySet<string> = new Set(Object.keys(PAGE_TOOL_ROUTES));
 
 export async function callPageTool(name: string, args: Json, context: ToolCallContext): Promise<ToolCallResult> {
+  if (PERSONAL_CLIENT) return { text: PERSONAL_PAGES_UNAVAILABLE, isError: true };
   const { ok, body } = await context.client.apiResponse(`/api/internal/${PAGE_TOOL_ROUTES[name]}`, { method: "POST", body: JSON.stringify(args) });
   return ok ? { text: String(body.text ?? "Done.") } : { text: String(body.error ?? "Publishing failed. Try again shortly."), isError: true };
 }
 
 const PAGE_ID = { type: "string", pattern: "^[a-z0-9]{20,63}$", description: "The page's id, the first part of its link." };
 
-export const PAGE_TOOL_DEFINITIONS = [
+export const PAGE_TOOL_DEFINITIONS = PERSONAL_CLIENT ? [] : [
   {
     name: "publish_page",
     description:

@@ -1,3 +1,4 @@
+import { PERSONAL_CLIENT } from "@/lib/personal-client";
 import { useEffect, useState } from "react";
 import { Cloud, Crown } from "lucide-react";
 import type { CloudAccountState } from "../../electron/cloud-account.mjs";
@@ -14,7 +15,7 @@ export function proOfferAvailable(account: CloudAccountState | null): boolean {
 }
 
 export function useCloudPlan(): { view: CloudPlanView; account: CloudAccountState | null } | null {
-  const bridge = window.ogb?.remoteClient?.active ? undefined : window.ogb?.cloudAccount;
+  const bridge = PERSONAL_CLIENT || window.ogb?.remoteClient?.active ? undefined : window.ogb?.cloudAccount;
   const [account, setAccount] = useState<CloudAccountState | null>(null);
   useEffect(() => {
     if (!bridge) return;

@@ -1,3 +1,4 @@
+import { PERSONAL_CLIENT } from "@/lib/personal-client";
 import { useEffect, useState } from "react";
 import { Check, LogOut, Plus, UserRound, X } from "lucide-react";
 import type { AccountsView, AccountSwitchResult, RailOpenResult } from "../../electron/cloud-account.mjs";
@@ -32,8 +33,8 @@ export function switchNote(result: Pick<RailOpenResult | AccountSwitchResult, "o
 
 /** Who is signed in on this device, on this app's own page; on any other page, only whether main offers the sheet. */
 export function useAccounts(): AccountsAccess & { sheet: { email: string | null; note: string | null } | null; closeSheet(): void } {
-  const bridge = window.ogb?.remoteClient?.active ? undefined : window.ogb?.accounts;
-  const remote = window.ogb?.accountSheet;
+  const bridge = PERSONAL_CLIENT || window.ogb?.remoteClient?.active ? undefined : window.ogb?.accounts;
+  const remote = PERSONAL_CLIENT ? undefined : window.ogb?.accountSheet;
   const own = window.ogb?.app?.ownPage === true && Boolean(bridge);
   const places = usePlaces();
   const [view, setView] = useState<AccountsView | null>(null);
