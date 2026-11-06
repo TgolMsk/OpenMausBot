@@ -96,13 +96,12 @@ import { reviveAfterFailedSwitch, switchLocalEnvironment } from "./environment-s
 import { createManagedDesktopClient, createManagedDesktopRelay, createManagedDesktopStore } from "./managed-desktop.mjs";
 import { CHECKOUT_SOURCES, cloudMenuSublabel, cloudTarget, createCloudAccountClient as cloudAccountClient, createCloudAccountStore } from "./cloud-account.mjs";
 import { installCloudPlanIpc } from "./cloud-plan-ipc.mjs";
-import { cloudLinkOpensSheet, colorDotIcons, createCloudLook, createCloudReadyNotice, installCloudBuy, lookFile } from "./cloud-buy.mjs";
+import { colorDotIcons, createCloudLook, createCloudReadyNotice, installCloudBuy, lookFile } from "./cloud-buy.mjs";
 import { createTrialNotices } from "./cloud-trial-notice.mjs";
 import { createDesktopText, DESKTOP_PORTS, jsonFile, registerDesktopPrefs, relabelDesktop } from "./desktop-prefs.mjs";
 import { createDesktopIncludedX } from "./included-x.mjs"; import { createDesktopIncludedPages } from "./included-pages.mjs";
 import { cloudPageSenderAllowed, cloudPlanDisk, cloudUnreachableText, createCloudPowerGate, isCloudHomeEntry, myCloudOrigin, rememberedCloudHome, savedCloudHomeOrigin, signInCloudSession, withCloudHome } from "./cloud-home.mjs";
 import { installCloudFiles } from "./cloud-sync-main.mjs";
-import { createCloudEntry } from "./cloud-entry.mjs";
 import { createLendingTarget } from "./lending-target.mjs"; import { createOpenAtLogin, installOpenAtLogin } from "./open-at-login.mjs";
 import { cleanWorkspaceDir, createCleanWorkspace, DEFAULT_PROFILE, profilesDir } from "./clean-workspace.mjs"; import { installOneHome } from "./one-home-main.mjs"; import { handSaved, installOwnHome } from "./own-home-main.mjs"; import { reopenSavedServer, serverOpens } from "./saved-server.mjs"; import { installTwoPlacesMain } from "./two-places-main.mjs";
 import { askForMicrophone, openPrivacySettings } from "./privacy-settings.mjs";
@@ -144,15 +143,6 @@ let pendingOrganizationEntry = takeOrganizationDeepLink(process.argv);
 function appWindows() {
   return BrowserWindow.getAllWindows().filter((win) => !isTalkPanel(win));
 }
-const cloudEntry = createCloudEntry({
-  reveal: () => { if (!desktopTray?.show()) activateExistingWindow(appWindows()); },
-  open: async () => {
-    let delivered = false;
-    await workspaceMenuAction(async () => { delivered = await openCloudEntry(); });
-    return delivered;
-  },
-});
-if (!PERSONAL_CLIENT) cloudEntry.fromLaunch(process.argv);
 let pendingPackageInstallUrl = pendingOrganizationEntry ? null : packageUrlFromCommandLine(process.argv);
 let pendingChatLink = pendingOrganizationEntry ? null : chatLinkFromCommandLine(process.argv);
 let organizationEntryReady = false;
@@ -243,7 +233,7 @@ function queueChatLink(rawLink) {
 }
 
 app.on("open-url", (event, url) => {
-  if (!queueOrganizationEntry(url) && !(!PERSONAL_CLIENT && cloudEntry.fromUrl(url)) && !queuePackageInstall(url) && !queueChatLink(url)) return;
+  if (!queueOrganizationEntry(url) && !queuePackageInstall(url) && !queueChatLink(url)) return;
   event.preventDefault();
 });
 
@@ -252,7 +242,6 @@ app.on("second-instance", (_event, commandLine) => {
     queueOrganizationEntry("openmausbot://organization");
     return;
   }
-  if (!PERSONAL_CLIENT && cloudEntry.fromArgs(commandLine)) return;
   const packageUrl = packageUrlFromCommandLine(commandLine);
   if (packageUrl) pendingPackageInstallUrl = packageUrl;
   const chatLink = chatLinkFromCommandLine(commandLine);
@@ -894,6 +883,7 @@ const announceCloudReady = createCloudReadyNotice({ Notification, focused: () =>
   open: () => { if (!desktopTray?.show()) activateExistingWindow(appWindows()); void workspaceMenuAction(() => (homeWindow.cloudOrigin() ? showHome({ place: "cloud" }) : connectCloudHome())); } });
 
 function ensureManagedDesktop() {
+  if (PERSONAL_CLIENT) throw new Error("Organization services are unavailable in the personal client. Connect to your own server.");
   if (managedDesktop) return managedDesktop;
   if (!app.isPackaged || desktopRemoteAccess) throw new Error("Organization sign-in requires the installed desktop app running on this computer.");
   const encryption = {
@@ -1780,27 +1770,6 @@ async function deliverOrganizationEntry() {
   let delivered = false;
   await workspaceMenuAction(async () => { delivered = await organizationEntry.request(); });
   return delivered;
-}
-
-async function openCloudEntry() {
-  if (!app.isPackaged) throw new Error("MausBot Cloud requires the installed desktop app.");
-  if (desktopRemoteAccess) throw new Error("This app is connected to another computer. Disconnect it to use MausBot Cloud on this computer.");
-  if (!serverReady) throw new Error("This installation is unavailable. Restart the app and open My Cloud again.");
-  await cloudAccountRestored();
-  if ((await homeWindow.refresh()).kind !== "computer") { await showHome({ place: "cloud" }); return true; }
-  const active = activeRemote(environmentsState);
-  const showingCloud = Boolean(active) && active.origin === cloudAccount?.homeTarget()?.origin;
-  if (active && !showingCloud) persistEnvironments(withActive(environmentsState, LOCAL_ID));
-  const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : createWindow({ deferNavigation: !showingCloud });
-  if (showingCloud) return true;
-  const action = cloudLinkOpensSheet(cloudAccount?.state()) ? "cloud-add" : "cloud";
-  void cloudAccount?.refresh().catch(() => {});
-  if (!win.webContents.isLoadingMainFrame() && senderIsLocal({ sender: win.webContents })) {
-    win.webContents.send("app:open-settings", action);
-  } else {
-    await win.loadURL(`${rendererOrigin()}/?desktop-settings=${action}`);
-  }
-  return true;
 }
 
 function openWorkspaceSettings(computerId) {
@@ -3091,7 +3060,7 @@ app.whenReady().then(async () => {
     }
   }
   if (desktopShutdownStarted) return;
-  if (app.isPackaged && !desktopRemoteAccess) void ensureManagedDesktop().start().then(() => companyBackupSchedule.start()).catch(() => {});
+  if (!PERSONAL_CLIENT && app.isPackaged && !desktopRemoteAccess) void ensureManagedDesktop().start().then(() => companyBackupSchedule.start()).catch(() => {});
   // Fresh local use never makes a Cloud request; start only restores an existing grant.
   if (!PERSONAL_CLIENT && app.isPackaged && !desktopRemoteAccess) {
     cloudAccountRestoring = true;
@@ -3128,8 +3097,7 @@ app.whenReady().then(async () => {
   organizationEntryReady = true;
   // A cold-start action owns its first navigation; a default load started first would be aborted by it.
   const deliveredOrganizationEntry = await deliverOrganizationEntry();
-  const deliveredCloudEntry = await cloudEntry.ready();
-  if (!hiddenStart && !restoredOrganizationEntry && !deliveredOrganizationEntry && !deliveredCloudEntry) await showHome();
+  if (!hiddenStart && !restoredOrganizationEntry && !deliveredOrganizationEntry) await showHome();
   // Reconcile incomplete setup and resume interrupted sign-out only once the local app is usable.
   if (hostedAccount) void hostedAccount.restore().catch(() => {});
   // Registering from an unreadable store would mint a second installation identity.

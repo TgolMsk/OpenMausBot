@@ -2,7 +2,7 @@ import { chmodSync, existsSync, readFileSync, mkdirSync, rmSync, statSync, unlin
 import { join } from "node:path"; import { isDeepStrictEqual } from "node:util";
 
 import { OwnedFile, writeFileAtomic } from "./atomic.ts"; import { saveSoon } from "./save-batch.ts"; import { discardNativeLog } from "./drivers/native.ts";
-import { PERSONAL_CLIENT } from "../shared/personal-client.ts";
+import { PERSONAL_CLIENT, normalizeBotCloudSettings } from "./personal-client.ts";
 import { commitRegistryChange, keptRevocation, saveRegistryFor, touchesPermissions } from "./registry-save.ts";
 import { parseToolScope, toolScopeWidens } from "../shared/tool-scope.ts"; import { grantScopedApps } from "../shared/connector-scopes.ts";
 import { reorderStable } from "../shared/bot-order.ts"; import { trimOutboundPolicy } from "../shared/outbound.ts";
@@ -358,18 +358,7 @@ export class Store {
           botsMigrated = true;
         }
       }
-      if (b.cloudBackend !== undefined && b.cloudBackend !== "box" && b.cloudBackend !== "vps") {
-        delete b.cloudBackend;
-        botsMigrated = true;
-      }
-      if (PERSONAL_CLIENT && b.cloudBackend !== "vps") {
-        b.cloudBackend = "vps";
-        botsMigrated = true;
-      }
-      if (b.autoStartVps !== undefined && b.autoStartVps !== true && b.autoStartVps !== false) {
-        delete b.autoStartVps;
-        botsMigrated = true;
-      }
+      if (normalizeBotCloudSettings(b)) botsMigrated = true;
       if (b.managedSections !== undefined && (!b.chiefOfStaff || !Array.isArray(b.managedSections) ||
           b.managedSections.length > 100 || b.managedSections.some(section => typeof section !== "string" || section.length > 60))) {
         delete b.managedSections;

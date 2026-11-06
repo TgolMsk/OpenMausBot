@@ -7,6 +7,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppState, ConfigStatus, InstanceInfo } from "@/state/store";
 
+const personalEdition = vi.hoisted(() => ({ enabled: false }));
+vi.mock("@/lib/personal-client", () => ({ get PERSONAL_CLIENT() { return personalEdition.enabled; } }));
+beforeEach(() => { personalEdition.enabled = false; });
+
 const fixture = vi.hoisted(() => ({ owner: true as boolean | null, track: vi.fn(), api: vi.fn(), connectedApps: vi.fn() }));
 vi.mock("@/lib/use-owner-or-admin", () => ({ useOwnerOrAdmin: () => fixture.owner }));
 vi.mock("@/lib/analytics", () => ({ track: fixture.track, analyticsEnabled: () => true }));
@@ -172,4 +176,14 @@ describe("what the snapshot asks this page's app", () => {
     const shell = app.slice(app.indexOf("function Shell("), app.indexOf("\nfunction ", app.indexOf("function Shell(") + 1));
     expect(shell).toMatch(/\n {2}useUsageSnapshot\(\);\n/);
   });
+});
+
+
+it("personal client never reads accounts or sends a product snapshot", async () => {
+  personalEdition.enabled = true;
+  await draw(ready());
+  await wait(HOUR * 2);
+  expect(sent()).toHaveLength(0);
+  expect(fixture.api).not.toHaveBeenCalled();
+  expect(fixture.connectedApps).not.toHaveBeenCalled();
 });

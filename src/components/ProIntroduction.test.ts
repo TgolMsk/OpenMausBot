@@ -4,6 +4,10 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { CloudAccountState } from "../../electron/cloud-account.mjs";
 import type { CloudOffer } from "../../electron/cloud-home.mjs";
 
+const personalEdition = vi.hoisted(() => ({ enabled: false }));
+vi.mock("@/lib/personal-client", () => ({ get PERSONAL_CLIENT() { return personalEdition.enabled; } }));
+beforeEach(() => { personalEdition.enabled = false; });
+
 const f = vi.hoisted(() => ({ values: [] as unknown[], index: 0, effects: [] as EffectCallback[], dispatch: null as any }));
 vi.mock("react", async original => ({ ...await original<typeof import("react")>(),
   useState: (initial: unknown) => { const index = f.index++; if (!(index in f.values)) f.values[index] = typeof initial === "function" ? initial() : initial;
@@ -107,4 +111,13 @@ it("never offers a plan to anyone who pays, may pay, or whose state is unknown; 
   expect(await card(signedOut)).toBe("");
   vi.stubGlobal("window", {});
   expect(await card(signedOut)).toBe("");
+});
+
+
+it("personal client does not read offers or mount the Pro card even if a stale bridge is present", async () => {
+  personalEdition.enabled = true;
+  expect(await card(signedOut)).toBe("");
+  expect(bridge.state).not.toHaveBeenCalled();
+  expect(bridge.onState).not.toHaveBeenCalled();
+  expect(bridge.offer).not.toHaveBeenCalled();
 });

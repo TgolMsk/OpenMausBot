@@ -4,6 +4,10 @@ import { analyticsEnabled, initAnalytics, optAction, setAnalyticsEnabled } from 
 import { appVersion } from "./app-links";
 
 // `loads` counts evaluations of posthog-js (an opted-out session must leave it at 0); `calls` is what would reach PostHog.
+const personalEdition = vi.hoisted(() => ({ enabled: false }));
+vi.mock("@/lib/personal-client", () => ({ get PERSONAL_CLIENT() { return personalEdition.enabled; } }));
+beforeEach(() => { personalEdition.enabled = false; });
+
 const ph = vi.hoisted(() => {
   const ph = {
     loads: 0,
@@ -492,4 +496,16 @@ describe("app_active", () => {
     page.fire("focus");
     expect(active()).toHaveLength(2);
   });
+});
+
+
+it("personal client never loads telemetry even if a saved user choice is enabled", async () => {
+  personalEdition.enabled = true;
+  const fresh = await freshAnalytics();
+  fresh.setAnalyticsEnabled(true);
+  await fresh.initAnalytics();
+  fresh.track("app_opened");
+  expect(fresh.analyticsEnabled()).toBe(false);
+  expect(ph.loads).toBe(0);
+  expect(ph.calls).toEqual([]);
 });

@@ -3,7 +3,7 @@
 // and is ready in ~2s; stop→archived ~5s, resume→idle ~8s; disk persists, tmux does not. Stream tokens rotate on every
 // state change and the dedicated IP across archive/resume, so never persist either.
 import { createHash } from "node:crypto";
-import { PERSONAL_CLIENT } from "../shared/personal-client.ts";
+import { PERSONAL_CLIENT, BUNDLED_CLOUD_DESKTOPS_DISABLED } from "./personal-client.ts";
 
 import { DATA_DIR, type AppConfig } from "./config.ts";
 import { loadEnvironmentId } from "./environment.ts";
@@ -138,7 +138,7 @@ function snapshotBoatConfig(cfg: AppConfig): AppConfig {
 
 /** An own token goes to Boat; Cloud Pro's included token only to its relay. */
 export function boatFetch(cfg: AppConfig, path: string, opts: RequestInit = {}) {
-  if (PERSONAL_CLIENT) return Promise.reject(Object.assign(new Error("Boat cloud computers are disabled in this personal client. Use your own VPS or a Local VM."), { status: 410 }));
+  if (PERSONAL_CLIENT) return Promise.reject(Object.assign(new Error(BUNDLED_CLOUD_DESKTOPS_DISABLED), { status: 410 }));
   const account = boatAccount(cfg);
   return fetch(`${account?.api ?? boatProviderApi()}${relayPath(account, path)}`, {
     ...opts,
@@ -904,27 +904,8 @@ export function describeBoatAccount(cfg: AppConfig): { configured: boolean; incl
   return { configured: Boolean(account), ...(account?.included ? { included: true as const } : {}) };
 }
 
-export async function verifyToken(token: string): Promise<{ ok: true } | { ok: false; message: string; rejected?: true }> {
-  if (PERSONAL_CLIENT) return { ok: false, message: "Boat cloud computers are disabled in this personal client. Use your own VPS or a Local VM." };
-  try {
-    const res = await fetch(`${boatProviderApi()}/sandboxes?limit=1`, {
-      headers: { authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(20_000),
-    });
-    if (res.ok) return { ok: true };
-    if (res.status === 401 || res.status === 403) {
-      // Boat API keys are prefixed boat_ (box_ before v1).
-      return {
-        ok: false, rejected: true,
-        message: /^(boat|box)_/.test(token)
-          ? "boat.dev rejected that key — it may have been revoked or expired. Copy a fresh one from your boat.dev account."
-          : "That doesn't look like a Boat API key: they start with boat_ (older ones with box_). Copy the API key from your boat.dev account (an account or session token won't work here).",
-      };
-    }
-    return { ok: false, message: `boat.dev returned ${res.status} for that token — try again in a moment.` };
-  } catch {
-    return { ok: false, message: "Couldn't reach boat.dev to check that token — check your connection and retry." };
-  }
+export async function verifyToken(_token: string): Promise<{ ok: true } | { ok: false; message: string; rejected?: true }> {
+  return { ok: false, message: BUNDLED_CLOUD_DESKTOPS_DISABLED };
 }
 
 const INCLUDED_BOAT_UNAVAILABLE = "The cloud computers included with your Cloud plan aren't available right now. Try again later.";

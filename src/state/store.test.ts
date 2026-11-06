@@ -370,11 +370,11 @@ describe("keyboard shortcuts dialog state", () => {
 });
 
 describe("Settings opened by the Cloud link", () => {
-  it("marks only the link's own opening, counts each link, and clears on any other Settings navigation", () => {
+  it("redirects an old Cloud link to General while keeping its request bookkeeping", () => {
     expect(initialState.appSettingsCloudLink).toBe(0);
     const link = CLOUD_LINK_SETTINGS;
     const opened = reducer(initialState, link);
-    expect(opened).toMatchObject({ appSettingsOpen: true, appSettingsSection: "cloudAccount", appSettingsCloudLink: 1 });
+    expect(opened).toMatchObject({ appSettingsOpen: true, appSettingsSection: "general", appSettingsCloudLink: 1 });
     expect(reducer(opened, link).appSettingsCloudLink).toBe(2);
     expect(reducer(opened, { type: "toggleAppSettings", open: true, section: "cloudAccount" }).appSettingsCloudLink).toBe(0);
     expect(reducer(opened, { type: "toggleAppSettings", open: true, section: "general" }).appSettingsCloudLink).toBe(0);

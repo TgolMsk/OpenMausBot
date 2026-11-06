@@ -6,6 +6,10 @@ import type { CloudTrial } from "../../electron/cloud-home.mjs";
 import { cloudTrialView } from "@/lib/cloud-plan";
 import { setLocale } from "@/lib/i18n";
 
+const personalEdition = vi.hoisted(() => ({ enabled: false }));
+vi.mock("@/lib/personal-client", () => ({ get PERSONAL_CLIENT() { return personalEdition.enabled; } }));
+beforeEach(() => { personalEdition.enabled = false; });
+
 const f = vi.hoisted(() => ({ values: [] as unknown[], index: 0, effects: [] as EffectCallback[] }));
 vi.mock("react", async original => ({ ...await original<typeof import("react")>(),
   useState: (initial: unknown) => { const index = f.index++; if (!(index in f.values)) f.values[index] = typeof initial === "function" ? initial() : initial;
@@ -87,4 +91,13 @@ describe("the plan main reports to this page", () => {
     f.index = 0; f.effects = [];
     expect(useCloudPlanSnapshot(undefined)).toBeNull(); f.effects[0]!();
   });
+});
+
+
+it("personal client ignores a stale Cloud plan bridge without starting polling", () => {
+  personalEdition.enabled = true;
+  const state = vi.fn();
+  expect(useCloudPlanSnapshot({ state } as unknown as CloudPlanBridge)).toBeNull();
+  f.effects.forEach((effect) => effect());
+  expect(state).not.toHaveBeenCalled();
 });

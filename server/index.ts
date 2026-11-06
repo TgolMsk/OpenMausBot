@@ -288,7 +288,8 @@ import { type CloudOwnership } from "./cloud-owner.ts"; import { memberLoginRefu
 import { createCloudMoveRoutes } from "./cloud-move-http.ts";
 import { RESTART_EXIT_CODE } from "./restart.ts";
 import { applyIncludedXMessage, holdIncludedServices, researchCredential, trialCreditCredential, xCredential, xResearchStatus } from "./included-services.ts"; import { createResearchAvailability } from "./research.ts";
-import { PERSONAL_CLIENT } from "../shared/personal-client.ts";
+import { PERSONAL_CLIENT, BUNDLED_CLOUD_DESKTOPS_DISABLED } from "./personal-client.ts";
+import { personalVpsRoutineReadiness } from "./host/vps-routine.ts";
 import { CloudCreditProvider } from "./cloud-credit-provider.ts";
 import { createCreditMoves } from "./cloud-credit-moves.ts"; import { createRoutineHoldsHost } from "./host/routine-holds-host.ts";
 import { TRIAL_CREDIT_OWN_AI, TRIAL_KEY_HELD } from "./trial-credit.ts"; import { createHeldKeys } from "./cloud-held-keys.ts";
@@ -1525,7 +1526,7 @@ const managedPolicy = new ManagedDesktopPolicy({ onChange: () => {
 } });
 onKeyRejectionChange(() => { registry.forgetSnapshots(); broadcast({ kind: "config", ...configStatus() }); });
 function computerPlaceRefusal(kind: ComputerKind): { message: string; code: "cloud_home" | "managed_policy" } | undefined {
-  if (PERSONAL_CLIENT && kind === "box") return { message: "Boat cloud computers are disabled in this personal client. Use your own VPS or a Local VM.", code: "managed_policy" };
+  if (PERSONAL_CLIENT && kind === "box") return { message: BUNDLED_CLOUD_DESKTOPS_DISABLED, code: "managed_policy" };
   const cloudHome = CLOUD_HOME ? cloudHomePlaceRefusal(kind === "thisComputer" ? "local" : kind === "localVm" ? "vm" : "cloud") : undefined;
   if (cloudHome) return { message: cloudHome, code: "cloud_home" };
   const managed = managedPolicy.computerRefusal(kind);
@@ -8997,13 +8998,6 @@ async function cloudRoutineReadiness(botId: string, threadId?: string): Promise<
   const selection = threadId ? turnSelection(botId, threadId) : projected?.modelSelection;
   const bot = projected && selection ? { ...projected, modelSelection: selection } : projected;
   if (!bot || bot.hidden) return { ready: false, reason: "The routine's target bot no longer exists." };
-  if (PERSONAL_CLIENT && !vpsSshAliasForBot(cfg, bot)) return { ready: false, reason: "Running on a cloud computer needs your own VPS. Configure a VPS SSH alias in Settings → Computers first." };
-  if (!PERSONAL_CLIENT && !boat.boatConfigured(cfg)) {
-    return {
-      ready: false,
-      reason: `${boatNotConfigured(bot, "routine").message} For the bot's configured computer, including a self-hosted VPS, set run_on="maus" instead.`,
-    };
-  }
   const instance = registry.get(bot.modelSelection.instanceId);
   if (!instance) return { ready: false, reason: "The target bot's model is unavailable. Choose another model in the bot's settings." };
   const unsupported = cloudPlaceRefusal(cloudEngine(instance, bot.modelSelection.model), "routine", bot.name);
@@ -9012,20 +9006,7 @@ async function cloudRoutineReadiness(botId: string, threadId?: string): Promise<
     if ((await instance.snapshot()).state !== "available") {
       return { ready: false, reason: "The target bot's model is not ready to use the cloud computer." };
     }
-    if (PERSONAL_CLIENT) {
-      const status = await vps.vpsComputerStatus(vpsConfigForBot(cfg, bot), bot.id);
-      const canPrepare = status.configured && status.daemonUp && (status.container === "missing" || (status.managed &&
-        status.image && status.imageMatches && status.network === "private" && status.mounts === "none" && status.security === "hardened"));
-      return status.ready || canPrepare ? { ready: true } : { ready: false, reason: status.problem ?? "The target bot's VPS could not be reached. Check its VPS connection in Settings → Computers." };
-    }
-    const teamComputer = inheritedTeamComputer(bot);
-    const ownerId = teamComputer ? teamComputerOwner(teamComputer.id) : bot.id;
-    const machine = await boat.findBoat(cfg, ownerId);
-    if (teamComputer && !machine) {
-      return { ready: false, reason: "The team's cloud computer is missing; explicitly create or retry it from the Team map." };
-    }
-      // This probe checks identity and account only, without starting billing.
-    return { ready: true };
+    return await personalVpsRoutineReadiness(cfg, bot);
   } catch (error) {
     return {
       ready: false,

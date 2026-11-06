@@ -7,6 +7,10 @@ import { setLocale } from "@/lib/i18n";
 import { BotEditorStore, initialState, type useStore } from "@/state/store";
 import { FilesView } from "./FilesView";
 
+const personalEdition = vi.hoisted(() => ({ enabled: false }));
+vi.mock("@/lib/personal-client", () => ({ get PERSONAL_CLIENT() { return personalEdition.enabled; } }));
+beforeEach(() => { personalEdition.enabled = false; });
+
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const GB = 1024 ** 3;
 const folder = (status: SharedFolder["status"], extra: Partial<SharedFolder> = {}): SharedFolder =>
@@ -266,4 +270,13 @@ describe("My Cloud's state", () => {
     await mount();
     expect(page()).toContain("Files works with MausBot Cloud.");
   });
+});
+
+
+it("personal client does not restore the hosted files bridge or offer its paid settings", async () => {
+  personalEdition.enabled = true;
+  await mount();
+  expect(bridge.state).not.toHaveBeenCalled();
+  expect(bridge.onState).not.toHaveBeenCalled();
+  expect(button("Open MausBot Cloud settings")).toBeUndefined();
 });

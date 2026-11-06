@@ -253,7 +253,7 @@ describe("Research (treg) card", () => {
     expect(html).toMatch(new RegExp(`${SWITCH}[^>]*aria-checked="true"`));
     expect(html).not.toMatch(new RegExp(`${SWITCH}[^>]* disabled=""`));
     expect(html).toContain("through your treg key. Calls are billed to your treg balance.");
-    expect(html).not.toContain("Open API keys");
+    expect(html).toContain('data-keys-link="vps"');
   });
 
   it("is on by default with a Cloud plan, and turns off for one bot with one patch", () => {
@@ -286,7 +286,7 @@ describe("a VPS bot's own server", () => {
     expect(saved).toContain("Server (SSH alias)");
     expect(saved).toContain("Leave empty to use production-vps from Settings → API keys.");
     expect(saved).toContain('value="alpha-vps"');
-    expect(render(makeBot({ computer: "cloud", cloudBackend: "box" }))).not.toContain("Server (SSH alias)");
+    expect(render(makeBot({ computer: "cloud", cloudBackend: "box" }))).toContain("Server (SSH alias)");
     const { BotEditorContext } = await import("./BotEditorContext");
     const { api } = await import("@/state/store");
     const drafted = renderToStaticMarkup(createElement(StoreProvider, null,

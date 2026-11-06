@@ -1,4 +1,4 @@
-import { PERSONAL_CLIENT } from "@/lib/personal-client";
+import { personalSettingsSection } from "@/lib/personal-client";
 import { cloudAsleep, onCloudPower } from "../lib/cloud-power";
 import { api, ApiError, retryRequest, snapshotArrays } from "./api";
 import {
@@ -1542,7 +1542,7 @@ export function reducer(state: AppState, action: Action): AppState {
         ...state,
         appSettingsOpen: open,
         activityOpen: open ? false : state.activityOpen,
-        appSettingsSection: PERSONAL_CLIENT && action.section === "cloudAccount" ? "general" : action.section ?? state.appSettingsSection,
+        appSettingsSection: personalSettingsSection(action.section, state.appSettingsSection),
         appSettingsCloudLink: action.cloudLink && open ? state.appSettingsCloudLink + 1 : 0,
         appSettingsPhonePairing: action.phonePairing && open ? state.appSettingsPhonePairing + 1 : 0,
         settingsOpen: open ? false : state.settingsOpen,
@@ -1560,13 +1560,10 @@ export function reducer(state: AppState, action: Action): AppState {
       };
     }
     case "openCloudAdd":
-      if (PERSONAL_CLIENT) return state;
-      return { ...state, cloudAdd: state.cloudAdd ?? { source: action.source, ...(action.signIn ? { signIn: true as const } : {}) }, cloudHowTo: false };
+    case "cloudHowTo":
+      return state;
     case "closeCloudAdd":
       return state.cloudAdd ? { ...state, cloudAdd: null } : state;
-    case "cloudHowTo":
-      if (PERSONAL_CLIENT) return state;
-      return state.cloudHowTo === action.open ? state : { ...state, cloudHowTo: action.open };
     case "toggleTour": {
       const open = action.open ?? !state.tourOpen;
       return { ...state, tourOpen: open, appSettingsOpen: open ? false : state.appSettingsOpen };

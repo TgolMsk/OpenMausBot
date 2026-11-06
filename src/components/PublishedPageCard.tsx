@@ -14,6 +14,7 @@ const usageLine = (card: Card) => card.usage ? t("chat.page.usage", { pages: car
 
 function limitLine(card: Card): string {
   const limit = card.usage?.limit;
+  if (PERSONAL_CLIENT) return card.message ?? (limit === undefined ? "" : t("chat.page.usage", { pages: limit, limit }));
   if (limit === undefined) return card.message ?? "";
   return card.plan === "free" ? t("chat.page.freeLimit", { limit }) : t("chat.page.planLimit", { limit, plan: cloudPlanLabel(card.plan) });
 }
