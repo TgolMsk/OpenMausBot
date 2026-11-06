@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { resolveReleaseTag, verifyCloudBuild, verifyReleaseTarget } from "./finish-personal-release.mjs";
+import { ensureInheritedMirrorDisabled, resolveReleaseTag, verifyCloudBuild, verifyReleaseTarget } from "./finish-personal-release.mjs";
 
 const sha = "a".repeat(40);
 const build = { repository: "TgolMsk/OpenMausBot", version: "0.1.145", commit: sha, macArch: "arm64", windowsArch: "x64" };
@@ -31,4 +31,17 @@ it("resolves existing tags and accepts only explicit missing-ref responses", asy
     const error = Object.assign(new Error(stderr), { stderr });
     await expect(resolveReleaseTag("v0.1.145", vi.fn().mockRejectedValue(error))).rejects.toBe(error);
   }
+});
+
+it("does not disable an already disabled mirror workflow twice", async () => {
+  const disabled = vi.fn().mockResolvedValue(JSON.stringify({ state: "disabled_manually" }));
+  await expect(ensureInheritedMirrorDisabled(disabled)).resolves.toBeUndefined();
+  expect(disabled).toHaveBeenCalledTimes(1);
+  const active = vi.fn().mockResolvedValueOnce(JSON.stringify({ state: "active" })).mockResolvedValueOnce("").mockResolvedValueOnce(JSON.stringify({ state: "disabled_manually" }));
+  await expect(ensureInheritedMirrorDisabled(active)).resolves.toBeUndefined();
+  expect(active.mock.calls[1][1]).toContain("PUT");
+  const unchanged = vi.fn().mockResolvedValue(JSON.stringify({ state: "active" }));
+  await expect(ensureInheritedMirrorDisabled(unchanged)).rejects.toThrow("必须停用");
+  const denied = Object.assign(new Error("denied"), { stderr: "gh: Forbidden (HTTP 403)" });
+  await expect(ensureInheritedMirrorDisabled(vi.fn().mockRejectedValue(denied))).rejects.toBe(denied);
 });

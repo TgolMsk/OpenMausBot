@@ -41,6 +41,16 @@ export async function resolveReleaseTag(tag, command = releaseCommand) {
   return command("gh", ["api", `repos/${RELEASE_REPOSITORY}/commits/${tag}`, "--jq", ".sha"]);
 }
 
+export async function ensureInheritedMirrorDisabled(command = releaseCommand) {
+  const workflow = `repos/${RELEASE_REPOSITORY}/actions/workflows/sync-published-release.yml`;
+  let state = JSON.parse(await command("gh", ["api", workflow])).state;
+  if (state === "active") {
+    await command("gh", ["api", "--method", "PUT", `${workflow}/disable`]);
+    state = JSON.parse(await command("gh", ["api", workflow])).state;
+  }
+  assert.match(state, /^disabled_/, "旧版镜像发布工作流必须停用");
+}
+
 async function notarize(file, profile, directory) {
   console.log(`正在公证：${basename(file)}`);
   const result = JSON.parse(await releaseCommand("xcrun", ["notarytool", "submit", file, "--keychain-profile", profile, "--wait", "--output-format", "json"]));
@@ -144,7 +154,7 @@ export async function finishPersonalRelease({ version, profile = "fgbrowser-nota
     const current = JSON.parse(await releaseCommand("gh", ["release", "view", tag, "--repo", RELEASE_REPOSITORY, "--json", "isDraft,targetCommitish"]));
     verifyReleaseTarget(current, await resolveReleaseTag(tag));
     assert.equal(current.targetCommitish, release.targetCommitish, "签名期间草稿源提交发生变化");
-    await releaseCommand("gh", ["api", "--method", "PUT", `repos/${RELEASE_REPOSITORY}/actions/workflows/sync-published-release.yml/disable`]);
+    await ensureInheritedMirrorDisabled();
     const notes = join(directory, "release-notes.md");
     await writeFile(notes, `自用客户端 ${version}\n\n- macOS Apple silicon：Developer ID 签名、Apple 公证。\n- Windows x64：NSIS 安装包与 ZIP。\n- 自动更新仅连接本仓库正式 Releases。\n\n构建提交：${release.targetCommitish}\n云构建：${metadata.run}\n`);
     await releaseCommand("gh", ["release", "edit", tag, "--repo", RELEASE_REPOSITORY, "--notes-file", notes, "--draft=false", "--latest"]);
