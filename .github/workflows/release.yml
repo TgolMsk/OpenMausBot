@@ -54,6 +54,13 @@ jobs:
           assert.match(readFileSync('electron-builder.yml', 'utf8'), /owner: TgolMsk/);
           assert.match(readFileSync('shared/personal-client.ts', 'utf8'), /PERSONAL_CLIENT = true/);
           NODE
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" > "$RUNNER_TEMP/release-tag-ref"; then
+            tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/v$version" --jq .sha)
+            test "$tag_sha" = "$sha" || { echo "::error::v$version already points at another commit"; exit 1; }
+          else
+            tag_lookup_status=$?
+            test "$tag_lookup_status" -eq 2 || { echo "::error::could not verify the remote release tag"; exit 1; }
+          fi
           if gh release view "v$version" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null | grep -q false; then
             echo "::error::v$version is already published; bump package.json before rebuilding"
             exit 1
@@ -211,18 +218,22 @@ jobs:
         run: |
           test "$GITHUB_REPOSITORY" = TgolMsk/OpenMausBot
           tag="v$VERSION"
-          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft,targetCommitish > "$RUNNER_TEMP/release.json" 2>/dev/null; then
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft,targetCommitish,assets > "$RUNNER_TEMP/release.json" 2>/dev/null; then
             test "$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')).isDraft" "$RUNNER_TEMP/release.json")" = true
             target=$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')).targetCommitish" "$RUNNER_TEMP/release.json")
             target_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$target" --jq .sha)
             test "$target_sha" = "$SHA" || { echo "::error::the existing draft targets another commit"; exit 1; }
+            complete=$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')).assets.some(asset => asset.name === 'build-metadata.json')" "$RUNNER_TEMP/release.json")
+            test "$complete" = false || { echo "::error::the draft is complete; finish signing it locally or use a new version"; exit 1; }
           else
             printf '自用版 %s，构建提交 %s。\n\nWindows 安装包已准备；Mac 产物须先在本机签名、公证并重新生成更新索引后发布。\n' "$VERSION" "$SHA" > "$RUNNER_TEMP/notes.md"
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$SHA" --draft --title "OpenMausBot Personal $VERSION" --notes-file "$RUNNER_TEMP/notes.md"
           fi
           for file in assets/*; do
+            if [ "$file" = assets/build-metadata.json ]; then continue; fi
             gh release upload "$tag" "$file" --repo "$GITHUB_REPOSITORY" --clobber
           done
+          gh release upload "$tag" assets/build-metadata.json --repo "$GITHUB_REPOSITORY" --clobber
           {
             echo "### Draft v$VERSION"
             echo "https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"

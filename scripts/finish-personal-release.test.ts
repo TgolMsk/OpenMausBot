@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { verifyCloudBuild } from "./finish-personal-release.mjs";
+import { verifyCloudBuild, verifyReleaseTarget } from "./finish-personal-release.mjs";
 
 const sha = "a".repeat(40);
 const build = { repository: "TgolMsk/OpenMausBot", version: "0.1.145", commit: sha, macArch: "arm64", windowsArch: "x64" };
@@ -9,4 +9,11 @@ it("signs only the same-version, same-commit builds from this fork", () => {
   for (const patch of [{ repository: "milind-soni/OpenMausBot" }, { version: "0.1.144" }, { commit: "b".repeat(40) }, { macArch: "x64" }, { windowsArch: "arm64" }]) {
     expect(() => verifyCloudBuild({ ...build, ...patch }, build.version, sha)).toThrow();
   }
+});
+
+it("refuses a release whose tag points to another source commit", () => {
+  const release = { isDraft: true, targetCommitish: sha };
+  expect(() => verifyReleaseTarget(release, sha)).not.toThrow();
+  expect(() => verifyReleaseTarget(release, "b".repeat(40))).toThrow("标签和云构建提交不一致");
+  expect(() => verifyReleaseTarget({ ...release, isDraft: false }, sha)).toThrow("不覆盖已经发布的版本");
 });

@@ -12,9 +12,12 @@ assert.equal(await releaseCommand("git", ["status", "--porcelain"]), "", "请先
 const sha = await releaseCommand("git", ["rev-parse", "HEAD"]);
 assert.equal(await releaseCommand("git", ["rev-parse", `origin/${branch}`]), sha, "请先推送当前提交");
 let draft;
-try { draft = JSON.parse(await releaseCommand("gh", ["release", "view", `v${version}`, "--repo", RELEASE_REPOSITORY, "--json", "isDraft"])); }
+try { draft = JSON.parse(await releaseCommand("gh", ["release", "view", `v${version}`, "--repo", RELEASE_REPOSITORY, "--json", "isDraft,targetCommitish"])); }
 catch (error) { if (!/release not found|not found|404/i.test(error.message)) throw error; }
-if (draft) assert.equal(draft.isDraft, true, "该版本已发布，请先修改 package.json 版本号并提交");
+if (draft) {
+  assert.equal(draft.isDraft, true, "该版本已发布，请先修改 package.json 版本号并提交");
+  assert.equal(draft.targetCommitish, sha, "草稿来自其他提交，请使用新版本号发版；如需完成旧草稿，请用 release:personal:finish");
+}
 else {
   const started = new Date().toISOString();
   console.log(`启动 GitHub 云构建：${version} (${sha.slice(0, 9)})`);

@@ -25,6 +25,12 @@ export function verifyCloudBuild(metadata, version, sha) {
   assert.equal(metadata.windowsArch, "x64", "Windows 安装包必须为 x64");
 }
 
+export function verifyReleaseTarget(release, tagSha) {
+  assert.equal(release.isDraft, true, "只处理草稿，不覆盖已经发布的版本");
+  assert.match(release.targetCommitish, /^[a-f0-9]{40}$/, "草稿必须锁定具体提交");
+  assert.equal(tagSha, release.targetCommitish, "Release 标签和云构建提交不一致");
+}
+
 async function notarize(file, profile, directory) {
   console.log(`正在公证：${basename(file)}`);
   const result = JSON.parse(await releaseCommand("xcrun", ["notarytool", "submit", file, "--keychain-profile", profile, "--wait", "--output-format", "json"]));
@@ -54,8 +60,8 @@ export async function finishPersonalRelease({ version, profile = "fgbrowser-nota
   assert.match(version, /^\d+\.\d+\.\d+$/, "版本必须为 X.Y.Z");
   const tag = `v${version}`;
   const release = JSON.parse(await releaseCommand("gh", ["release", "view", tag, "--repo", RELEASE_REPOSITORY, "--json", "isDraft,targetCommitish,url,body"]));
-  assert.equal(release.isDraft, true, "只处理草稿，不覆盖已经发布的版本");
-  assert.match(release.targetCommitish, /^[a-f0-9]{40}$/, "草稿必须锁定具体提交");
+  const tagSha = await releaseCommand("gh", ["api", `repos/${RELEASE_REPOSITORY}/commits/${tag}`, "--jq", ".sha"]);
+  verifyReleaseTarget(release, tagSha);
   await releaseCommand("git", ["merge-base", "--is-ancestor", release.targetCommitish, "origin/codex/personal-client"]);
 
   const identities = await releaseCommand("/usr/bin/security", ["find-identity", "-v", "-p", "codesigning"]);
