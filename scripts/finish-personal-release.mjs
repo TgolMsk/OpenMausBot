@@ -28,7 +28,17 @@ export function verifyCloudBuild(metadata, version, sha) {
 export function verifyReleaseTarget(release, tagSha) {
   assert.equal(release.isDraft, true, "只处理草稿，不覆盖已经发布的版本");
   assert.match(release.targetCommitish, /^[a-f0-9]{40}$/, "草稿必须锁定具体提交");
-  assert.equal(tagSha, release.targetCommitish, "Release 标签和云构建提交不一致");
+  if (tagSha !== null) assert.equal(tagSha, release.targetCommitish, "Release 标签和云构建提交不一致");
+}
+
+export async function resolveReleaseTag(tag, command = releaseCommand) {
+  try {
+    await command("gh", ["api", `repos/${RELEASE_REPOSITORY}/git/ref/tags/${tag}`]);
+  } catch (error) {
+    if (error.stderr?.includes("(HTTP 404)")) return null;
+    throw error;
+  }
+  return command("gh", ["api", `repos/${RELEASE_REPOSITORY}/commits/${tag}`, "--jq", ".sha"]);
 }
 
 async function notarize(file, profile, directory) {
@@ -60,7 +70,7 @@ export async function finishPersonalRelease({ version, profile = "fgbrowser-nota
   assert.match(version, /^\d+\.\d+\.\d+$/, "版本必须为 X.Y.Z");
   const tag = `v${version}`;
   const release = JSON.parse(await releaseCommand("gh", ["release", "view", tag, "--repo", RELEASE_REPOSITORY, "--json", "isDraft,targetCommitish,url,body"]));
-  const tagSha = await releaseCommand("gh", ["api", `repos/${RELEASE_REPOSITORY}/commits/${tag}`, "--jq", ".sha"]);
+  const tagSha = await resolveReleaseTag(tag);
   verifyReleaseTarget(release, tagSha);
   await releaseCommand("git", ["merge-base", "--is-ancestor", release.targetCommitish, "origin/codex/personal-client"]);
 
@@ -131,10 +141,19 @@ export async function finishPersonalRelease({ version, profile = "fgbrowser-nota
     if (uploaded.digest) assert.equal(uploaded.digest, `sha256:${createHash("sha256").update(local).digest("hex")}`);
   }
   if (publish) {
+    const current = JSON.parse(await releaseCommand("gh", ["release", "view", tag, "--repo", RELEASE_REPOSITORY, "--json", "isDraft,targetCommitish"]));
+    verifyReleaseTarget(current, await resolveReleaseTag(tag));
+    assert.equal(current.targetCommitish, release.targetCommitish, "签名期间草稿源提交发生变化");
     await releaseCommand("gh", ["api", "--method", "PUT", `repos/${RELEASE_REPOSITORY}/actions/workflows/sync-published-release.yml/disable`]);
     const notes = join(directory, "release-notes.md");
     await writeFile(notes, `自用客户端 ${version}\n\n- macOS Apple silicon：Developer ID 签名、Apple 公证。\n- Windows x64：NSIS 安装包与 ZIP。\n- 自动更新仅连接本仓库正式 Releases。\n\n构建提交：${release.targetCommitish}\n云构建：${metadata.run}\n`);
     await releaseCommand("gh", ["release", "edit", tag, "--repo", RELEASE_REPOSITORY, "--notes-file", notes, "--draft=false", "--latest"]);
+    let publishedSha = null;
+    for (let attempt = 0; attempt < 3 && publishedSha === null; attempt++) {
+      if (attempt) await new Promise(resolve => setTimeout(resolve, 3000));
+      publishedSha = await resolveReleaseTag(tag);
+    }
+    assert.equal(publishedSha, release.targetCommitish, "已发布标签和云构建提交不一致");
     console.log(`已发布：https://github.com/${RELEASE_REPOSITORY}/releases/tag/${tag}`);
   } else console.log(`签名产物已更新到草稿 ${tag}`);
   return receipt;

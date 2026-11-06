@@ -1,5 +1,5 @@
-import { expect, it } from "vitest";
-import { verifyCloudBuild, verifyReleaseTarget } from "./finish-personal-release.mjs";
+import { expect, it, vi } from "vitest";
+import { resolveReleaseTag, verifyCloudBuild, verifyReleaseTarget } from "./finish-personal-release.mjs";
 
 const sha = "a".repeat(40);
 const build = { repository: "TgolMsk/OpenMausBot", version: "0.1.145", commit: sha, macArch: "arm64", windowsArch: "x64" };
@@ -14,6 +14,21 @@ it("signs only the same-version, same-commit builds from this fork", () => {
 it("refuses a release whose tag points to another source commit", () => {
   const release = { isDraft: true, targetCommitish: sha };
   expect(() => verifyReleaseTarget(release, sha)).not.toThrow();
+  expect(() => verifyReleaseTarget(release, null)).not.toThrow();
+  expect(() => verifyReleaseTarget(release, undefined)).toThrow();
   expect(() => verifyReleaseTarget(release, "b".repeat(40))).toThrow("标签和云构建提交不一致");
   expect(() => verifyReleaseTarget({ ...release, isDraft: false }, sha)).toThrow("不覆盖已经发布的版本");
+  expect(() => verifyReleaseTarget({ ...release, targetCommitish: "main" }, null)).toThrow("锁定具体提交");
+});
+
+it("resolves existing tags and accepts only explicit missing-ref responses", async () => {
+  const command = vi.fn().mockResolvedValueOnce("{}").mockResolvedValueOnce(sha);
+  await expect(resolveReleaseTag("v0.1.145", command)).resolves.toBe(sha);
+  expect(command.mock.calls[1][1][1]).toContain("/commits/v0.1.145");
+  const missing = Object.assign(new Error("missing"), { stderr: "gh: Not Found (HTTP 404)" });
+  await expect(resolveReleaseTag("v0.1.145", vi.fn().mockRejectedValue(missing))).resolves.toBeNull();
+  for (const stderr of ["gh: Bad credentials (HTTP 401)", "gh: Server Error (HTTP 500)", "TLS handshake timeout"]) {
+    const error = Object.assign(new Error(stderr), { stderr });
+    await expect(resolveReleaseTag("v0.1.145", vi.fn().mockRejectedValue(error))).rejects.toBe(error);
+  }
 });
